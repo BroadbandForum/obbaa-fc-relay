@@ -1,0 +1,601 @@
+<rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1527307907657">
+ <edit-config>
+    <target>
+      <running/>
+    </target>
+    <config>
+
+      <network-manager xmlns="urn:bbf:yang:obbaa:network-manager">
+         <managed-devices>
+            <device>
+               <name>AlticeLabs_OLT</name>
+               <root>
+
+    <!-- olt-side  uplink hardware -->
+      <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+        <component>
+          <name>uplink_port</name>
+          <class xmlns:bbf-hwt="urn:bbf:yang:bbf-hardware-types">bbf-hwt:transceiver-link</class>
+        </component>
+      </hardware>
+
+    <!-- olt-side  uplink interface -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+            <name>uplink_port_intf</name>
+            <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:ethernetCsmacd</type>
+            <port-layer-if xmlns="urn:bbf:yang:bbf-interface-port-reference">uplink_port</port-layer-if>
+            </interface>
+          </interfaces>
+
+
+    <!-- olt-side  sfp1 -->
+      <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+        <component>
+          <name>SFP1</name>
+          <parent>C1</parent>
+          <parent-rel-pos>1</parent-rel-pos>
+          <model-name xmlns="urn:bbf:yang:bbf-hardware-extension">3FE66606AD01</model-name>
+          <class xmlns:bbf-hwt="urn:bbf:yang:bbf-hardware-types">bbf-hwt:transceiver</class>
+        </component>
+      </hardware>
+
+    <!-- olt-side  port1 -->
+      <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+        <component>
+          <name>PORT1</name>
+          <parent>SFP1</parent>
+          <parent-rel-pos>1</parent-rel-pos>
+          <class xmlns:bbf-hwt="urn:bbf:yang:bbf-hardware-types">bbf-hwt:transceiver-link</class>
+        </component>
+      </hardware>
+
+    <!-- olt-side  sfp2 -->
+      <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+        <component>
+          <name>SFP2</name>
+          <parent>C2</parent>
+          <parent-rel-pos>2</parent-rel-pos>
+          <model-name xmlns="urn:bbf:yang:bbf-hardware-extension">3FE66606AD01</model-name>
+          <class xmlns:bbf-hwt="urn:bbf:yang:bbf-hardware-types">bbf-hwt:transceiver</class>
+        </component>
+      </hardware>
+
+    <!-- olt-side  port2 -->
+      <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+        <component>
+          <name>PORT2</name>
+          <parent>SFP2</parent>
+          <parent-rel-pos>2</parent-rel-pos>
+          <class xmlns:bbf-hwt="urn:bbf:yang:bbf-hardware-types">bbf-hwt:transceiver-link</class>
+        </component>
+      </hardware>
+
+    <!-- olt-side  channelgroup1 -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>cg1</name>
+          <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:channel-group</type>
+          <channel-group xmlns="urn:bbf:yang:bbf-xpon">
+            <polling-period>100</polling-period>
+            <raman-mitigation>raman-none</raman-mitigation>
+            <system-id>00000</system-id>
+            <pon-pools>
+                 <pon-pool>
+                      <name>pool1</name>
+                      <channel-termination-ref>CT_1</channel-termination-ref>
+                 </pon-pool>
+            </pon-pools>
+          </channel-group>
+        </interface>
+      </interfaces>
+
+    <!-- olt-side  channel-partition1 -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>scg1</name>
+          <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:channel-partition</type>
+          <channel-partition xmlns="urn:bbf:yang:bbf-xpon">
+            <channel-group-ref>cg1</channel-group-ref>
+            <channel-partition-index>1</channel-partition-index>
+            <downstream-fec>true</downstream-fec>
+            <multicast-aes-indicator>false</multicast-aes-indicator>
+            <authentication-method>serial-number</authentication-method>
+            <closest-onu-distance>0</closest-onu-distance>
+            <maximum-differential-xpon-distance>20</maximum-differential-xpon-distance>
+          </channel-partition>
+        </interface>
+      </interfaces>
+
+    <!-- olt-side  channel-pair1 -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>cp1</name>
+          <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:channel-pair</type>
+          <channel-pair xmlns="urn:bbf:yang:bbf-xpon">
+            <channel-group-ref>cg1</channel-group-ref>
+            <channel-partition-ref>scg1</channel-partition-ref>
+            <channel-pair-type xmlns:bbf-xpon-types="urn:bbf:yang:bbf-xpon-types">bbf-xpon-types:gpon</channel-pair-type>
+            <gpon-pon-id-interval>0</gpon-pon-id-interval>
+          </channel-pair>
+        </interface>
+      </interfaces>
+
+    <!-- olt-side channel-termination1 -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>CT_1</name>
+          <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:channel-termination</type>
+          <channel-termination xmlns="urn:bbf:yang:bbf-xpon">
+            <channel-pair-ref>cp1</channel-pair-ref>
+            <channel-termination-type xmlns:bbf-xpon-types="urn:bbf:yang:bbf-xpon-types">bbf-xpon-types:gpon</channel-termination-type>
+            <gpon-pon-id>00000000000000</gpon-pon-id>
+            <ber-calc-period>10</ber-calc-period>
+            <location xmlns:bbf-xpon-types="urn:bbf:yang:bbf-xpon-types">bbf-xpon-types:inside-olt</location>
+          </channel-termination>
+          <port-layer-if xmlns="urn:bbf:yang:bbf-interface-port-reference">PORT1</port-layer-if>
+        </interface>
+      </interfaces>
+
+    <!-- olt-side  channelgroup2 -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>cg2</name>
+          <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:channel-group</type>
+          <channel-group xmlns="urn:bbf:yang:bbf-xpon">
+            <polling-period>100</polling-period>
+            <raman-mitigation>raman-none</raman-mitigation>
+            <system-id>00000</system-id>
+            <pon-pools>
+                 <pon-pool>
+                      <name>pool1</name>
+                      <channel-termination-ref>CT_2</channel-termination-ref>
+                 </pon-pool>
+            </pon-pools>
+          </channel-group>
+        </interface>
+      </interfaces>
+
+    <!-- olt-side  channel-partition2 -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>scg2</name>
+          <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:channel-partition</type>
+          <channel-partition xmlns="urn:bbf:yang:bbf-xpon">
+            <channel-group-ref>cg2</channel-group-ref>
+            <channel-partition-index>2</channel-partition-index>
+            <downstream-fec>true</downstream-fec>
+            <multicast-aes-indicator>false</multicast-aes-indicator>
+            <authentication-method>serial-number</authentication-method>
+            <closest-onu-distance>0</closest-onu-distance>
+            <maximum-differential-xpon-distance>20</maximum-differential-xpon-distance>
+          </channel-partition>
+        </interface>
+      </interfaces>
+
+    <!-- olt-side  channel-pair2 -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>cp2</name>
+          <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:channel-pair</type>
+          <channel-pair xmlns="urn:bbf:yang:bbf-xpon">
+            <channel-group-ref>cg2</channel-group-ref>
+            <channel-partition-ref>scg2</channel-partition-ref>
+            <channel-pair-type xmlns:bbf-xpon-types="urn:bbf:yang:bbf-xpon-types">bbf-xpon-types:gpon</channel-pair-type>
+            <gpon-pon-id-interval>0</gpon-pon-id-interval>
+          </channel-pair>
+        </interface>
+      </interfaces>
+
+    <!-- olt-side channel-termination2 -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>CT_2</name>
+          <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:channel-termination</type>
+          <channel-termination xmlns="urn:bbf:yang:bbf-xpon">
+            <channel-pair-ref>cp2</channel-pair-ref>
+            <channel-termination-type xmlns:bbf-xpon-types="urn:bbf:yang:bbf-xpon-types">bbf-xpon-types:gpon</channel-termination-type>
+            <gpon-pon-id>00000000000000</gpon-pon-id>
+            <ber-calc-period>10</ber-calc-period>
+            <location xmlns:bbf-xpon-types="urn:bbf:yang:bbf-xpon-types">bbf-xpon-types:inside-olt</location>
+          </channel-termination>
+          <port-layer-if xmlns="urn:bbf:yang:bbf-interface-port-reference">PORT2</port-layer-if>
+        </interface>
+      </interfaces>
+
+   <!-- olt-side QOS -->
+      <classifiers xmlns="urn:bbf:yang:bbf-qos-classifiers">
+        <classifier-entry>
+          <name>classifier_ing0</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <tag>
+              <index>0</index>
+              <in-pbit-list>0</in-pbit-list>
+            </tag>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>0</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_ing1</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <tag>
+              <index>0</index>
+              <in-pbit-list>1</in-pbit-list>
+            </tag>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>1</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_ing2</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <tag>
+              <index>0</index>
+              <in-pbit-list>2</in-pbit-list>
+            </tag>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>2</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_ing3</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <tag>
+              <index>0</index>
+              <in-pbit-list>3</in-pbit-list>
+            </tag>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>3</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_ing4</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <tag>
+              <index>0</index>
+              <in-pbit-list>4</in-pbit-list>
+            </tag>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>4</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_ing5</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <tag>
+              <index>0</index>
+              <in-pbit-list>5</in-pbit-list>
+            </tag>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>5</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_ing6</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <tag>
+              <index>0</index>
+              <in-pbit-list>6</in-pbit-list>
+            </tag>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>6</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_ing7</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <tag>
+              <index>0</index>
+              <in-pbit-list>7</in-pbit-list>
+            </tag>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>7</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+      </classifiers>
+
+      <classifiers xmlns="urn:bbf:yang:bbf-qos-classifiers">
+        <classifier-entry>
+          <name>classifier_eg0</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <pbit-marking-list xmlns="urn:bbf:yang:bbf-qos-policing">
+              <index>0</index>
+              <pbit-value>0</pbit-value>
+            </pbit-marking-list>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>0</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_eg1</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <pbit-marking-list xmlns="urn:bbf:yang:bbf-qos-policing">
+              <index>0</index>
+              <pbit-value>1</pbit-value>
+            </pbit-marking-list>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>1</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_eg2</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <pbit-marking-list xmlns="urn:bbf:yang:bbf-qos-policing">
+              <index>0</index>
+              <pbit-value>2</pbit-value>
+            </pbit-marking-list>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>2</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_eg3</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <pbit-marking-list xmlns="urn:bbf:yang:bbf-qos-policing">
+              <index>0</index>
+              <pbit-value>3</pbit-value>
+            </pbit-marking-list>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>3</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_eg4</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <pbit-marking-list xmlns="urn:bbf:yang:bbf-qos-policing">
+              <index>0</index>
+              <pbit-value>4</pbit-value>
+            </pbit-marking-list>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>4</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_eg5</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <pbit-marking-list xmlns="urn:bbf:yang:bbf-qos-policing">
+              <index>0</index>
+              <pbit-value>5</pbit-value>
+            </pbit-marking-list>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>5</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_eg6</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <pbit-marking-list xmlns="urn:bbf:yang:bbf-qos-policing">
+              <index>0</index>
+              <pbit-value>6</pbit-value>
+            </pbit-marking-list>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>6</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+        <classifier-entry>
+          <name>classifier_eg7</name>
+          <filter-operation>match-all-filter</filter-operation>
+          <match-criteria>
+            <pbit-marking-list xmlns="urn:bbf:yang:bbf-qos-policing">
+              <index>0</index>
+              <pbit-value>7</pbit-value>
+            </pbit-marking-list>
+          </match-criteria>
+          <classifier-action-entry-cfg>
+            <action-type>scheduling-traffic-class</action-type>
+            <scheduling-traffic-class>7</scheduling-traffic-class>
+          </classifier-action-entry-cfg>
+        </classifier-entry>
+      </classifiers>
+
+
+      <policies xmlns="urn:bbf:yang:bbf-qos-policies">
+        <policy>
+          <name>POLICY_EG</name>
+          <classifiers>
+            <name>classifier_eg0</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_eg1</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_eg2</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_eg3</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_eg4</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_eg5</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_eg6</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_eg7</name>
+          </classifiers>
+        </policy>
+      </policies>
+
+
+      <qos-policy-profiles xmlns="urn:bbf:yang:bbf-qos-policies">
+        <policy-profile>
+          <name>QPP0</name>
+          <policy-list>
+            <name>POLICY_EG</name>
+          </policy-list>
+        </policy-profile>
+      </qos-policy-profiles>
+
+      <policies xmlns="urn:bbf:yang:bbf-qos-policies">
+        <policy>
+          <name>POLICY_ING</name>
+          <classifiers>
+            <name>classifier_ing0</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_ing1</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_ing2</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_ing3</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_ing4</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_ing5</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_ing6</name>
+          </classifiers>
+          <classifiers>
+            <name>classifier_ing7</name>
+          </classifiers>
+        </policy>
+      </policies>
+
+      <qos-policy-profiles xmlns="urn:bbf:yang:bbf-qos-policies">
+        <policy-profile>
+          <name>IPP0</name>
+          <policy-list>
+            <name>POLICY_ING</name>
+          </policy-list>
+        </policy-profile>
+      </qos-policy-profiles>
+
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>scg1</name>
+          <tm-root xmlns="urn:bbf:yang:bbf-qos-traffic-mngt">
+            <scheduler-node xmlns="urn:bbf:yang:bbf-qos-enhanced-scheduling">
+              <name>NODE_DEF</name>
+              <scheduling-level>1</scheduling-level>
+              <queue>
+                <local-queue-id>0</local-queue-id>
+              </queue>
+              <queue>
+                <local-queue-id>1</local-queue-id>
+              </queue>
+              <queue>
+                <local-queue-id>2</local-queue-id>
+              </queue>
+              <queue>
+                <local-queue-id>3</local-queue-id>
+              </queue>
+              <queue>
+                <local-queue-id>4</local-queue-id>
+              </queue>
+              <queue>
+                <local-queue-id>5</local-queue-id>
+              </queue>
+              <queue>
+                <local-queue-id>6</local-queue-id>
+              </queue>
+              <queue>
+                <local-queue-id>7</local-queue-id>
+              </queue>
+            </scheduler-node>
+          </tm-root>
+        </interface>
+      </interfaces>
+
+
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>scg1</name>
+          <tm-root xmlns="urn:bbf:yang:bbf-qos-traffic-mngt">
+            <child-scheduler-nodes xmlns="urn:bbf:yang:bbf-qos-enhanced-scheduling">
+              <name>NODE_DEF</name>
+            </child-scheduler-nodes>
+          </tm-root>
+        </interface>
+      </interfaces>
+
+      <!-- olt-side dhcp relay profile -->
+      <l2-dhcpv4-relay-profiles xmlns="urn:bbf:yang:bbf-l2-dhcpv4-relay">
+               <l2-dhcpv4-relay-profile>
+                              <name>DHCP_Default</name>
+                              <max-packet-size>1500</max-packet-size>
+                              <option82-format>
+                                             <access-loop-suboptions/>
+                                             <default-circuit-id-syntax/>
+                                             <default-remote-id-syntax>N-VID:N2VID</default-remote-id-syntax>
+                                             <start-numbering-from-zero>false</start-numbering-from-zero>
+                                             <use-leading-zeroes>false</use-leading-zeroes>
+                                             <suboptions>remote-id</suboptions>
+                              </option82-format>
+               </l2-dhcpv4-relay-profile>
+     </l2-dhcpv4-relay-profiles>
+
+      <!-- olt-side traffic-descriptor-profile -->
+      <xpongemtcont xmlns="urn:bbf:yang:bbf-xpongemtcont">
+          <traffic-descriptor-profiles>
+            <traffic-descriptor-profile>
+              <name>TDP0</name>
+              <fixed-bandwidth>10000000</fixed-bandwidth>
+              <assured-bandwidth>10000000</assured-bandwidth>
+              <maximum-bandwidth>30000000</maximum-bandwidth>
+            </traffic-descriptor-profile>
+          </traffic-descriptor-profiles>
+      </xpongemtcont>
+
+
+         </root>
+      </device>
+      </managed-devices>
+      </network-manager>
+
+</config>
+</edit-config>
+</rpc>

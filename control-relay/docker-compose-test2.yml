@@ -1,0 +1,107 @@
+version: '2.2'
+networks: 
+    network_sdn_controller: 
+        driver: bridge
+        name: network_sdn_controller
+    network_control_relay:
+        driver: bridge
+        name: network_control_relay         
+
+services: 
+    server_sdn_controller_1:
+        image: obbaa/steering_app_server
+        container_name: STEERING_APP_SERVER
+        restart: always
+        environment: 
+            - STEERING_APP_PORT=50053
+            - OBBAA_ADDRESS=192.168.56.102
+            - OBBAA_PORT=9292
+        networks: 
+            - network_sdn_controller
+
+    server_sdn_controller_2:
+        image: obbaa/steering_app_server
+        container_name: STEERING_APP_SERVER2
+        restart: always
+        environment: 
+            - STEERING_APP_PORT=50053
+            - OBBAA_ADDRESS=192.168.56.102
+            - OBBAA_PORT=9292
+        networks: 
+            - network_sdn_controller        
+            
+    server_sdn_controller_3:
+        image: obbaa/steering_app_server
+        container_name: STEERING_APP_SERVER3
+        restart: always
+        environment: 
+            - STEERING_APP_PORT=50053
+            - OBBAA_ADDRESS=192.168.56.102
+            - OBBAA_PORT=9292
+        networks: 
+            - network_sdn_controller          
+
+    control_relay:
+        image: obbaa/control-relay 
+        container_name: CONTROL_RELAY
+        restart: always
+        ports:
+            - "50052:50052"
+            - "50055:50055"
+        environment: 
+            - CONTROL_RELAY_HELLO_NAME=control_relay_service
+            - PLUGIN_PORT=50052
+            - SDN_MC_SERVER_PORT=50053
+            - SDN_MC_SERVER_LIST=server_sdn_controller_1;server_sdn_controller_2;server_sdn_controller_3
+            - CONTROL_RELAY_PORT=50055
+            - OBBAA_ADDRESS=192.168.56.102
+            - OBBAA_PORT=9292
+            - SSH_USER=admin
+            - SSH_PASSWORD=password
+            - SHARED_FOLDER=./plugin-repo
+            - PRIVATE_FOLDER=./plugin-enabled
+        volumes:
+            - ./bin/plugins:/control_relay/plugin-repo
+        depends_on: 
+            - server_sdn_controller_1
+            - server_sdn_controller_2
+            - server_sdn_controller_3
+        networks: 
+            - network_sdn_controller
+            - network_control_relay
+
+    client_sdn_controller_1:
+        image: obbaa/steering_app_client
+        container_name: STEERING_APP_CLIENT1
+        restart: always
+        environment: 
+            - STEERING_APP_ADDRESS_CLIENT=0.0.0.0
+            - STEERING_APP_PORT_CLIENT=50055
+        depends_on: 
+            - control_relay
+        networks:
+            - network_control_relay
+                    
+    client_sdn_controller_2:
+        image: obbaa/steering_app_client
+        container_name: STEERING_APP_CLIENT2
+        restart: always
+        environment: 
+            - STEERING_APP_ADDRESS_CLIENT=0.0.0.0
+            - STEERING_APP_PORT_CLIENT=50055
+        depends_on: 
+            - control_relay
+        networks:
+            - network_control_relay         
+        
+    client_sdn_controller_3:
+        image: obbaa/steering_app_client
+        container_name: STEERING_APP_CLIENT3
+        restart: always
+        environment: 
+            - STEERING_APP_ADDRESS_CLIENT=0.0.0.0
+            - STEERING_APP_PORT_CLIENT=50055
+        depends_on: 
+            - control_relay
+        networks:
+            - network_control_relay    

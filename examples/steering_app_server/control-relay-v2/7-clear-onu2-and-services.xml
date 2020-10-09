@@ -1,0 +1,157 @@
+<rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1527307907657">
+<edit-config>
+    <target>
+      <running/>
+    </target>
+
+    <config>
+
+      <network-manager xmlns="urn:bbf:yang:obbaa:network-manager">
+         <managed-devices>
+            <device>
+               <name>AlticeLabs_OLT</name>
+               <root>
+
+    <!-- olt-side vlan sub-interface  network-->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+          <name>ont2_uni1_vsi1_network</name>
+        </interface>
+      </interfaces>
+
+    <!-- olt-side vani -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+          <name>vani2</name>
+        </interface>
+      </interfaces>
+
+
+      <!-- olt-side venet -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+          <name>ont2_venet1</name>
+        </interface>
+      </interfaces>
+
+
+  <!-- olt-side vlan sub-interface user-->
+        <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+          <name>ont2_uni1_vsi1_user</name>
+        </interface>
+      </interfaces>
+
+
+  <!-- olt-side l2fwd forwarder -->
+      <forwarding xmlns="urn:bbf:yang:bbf-l2-forwarding">
+        <forwarders>
+          <forwarder  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+            <name>fwd2</name>
+          </forwarder>
+        </forwarders>
+      </forwarding>
+
+      <!-- olt-side tcont -->
+      <xpongemtcont xmlns="urn:bbf:yang:bbf-xpongemtcont">
+          <tconts>
+            <tcont  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+              <name>tcont2_ont2</name>
+            </tcont>
+          </tconts>
+      </xpongemtcont>
+
+
+      <!-- olt-side gemport -->
+      <xpongemtcont xmlns="urn:bbf:yang:bbf-xpongemtcont">
+          <gemports>
+            <gemport   xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+              <name>gemport1_ont2</name>
+            </gemport>
+          </gemports>
+      </xpongemtcont>
+
+
+    <!-- onu-side chassis -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+                <name>ont2</name>
+              </component>
+            </hardware>
+
+      <!-- onu-side board -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+                <name>board_ont2</name>
+              </component>
+            </hardware>
+
+      <!-- onu-side cage -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+                <name>ontcage_ont2</name>
+              </component>
+            </hardware>
+
+      <!-- onu-side sfp -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+                <name>ontsfp_ont2</name>
+              </component>
+            </hardware>
+
+      <!-- onu-side aniport -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+                <name>ontaniport_ont2</name>
+              </component>
+            </hardware>
+
+      <!-- onu-side ani -->
+            <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+              <interface  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+                <name>ani2</name>
+              </interface>
+            </interfaces>
+
+
+      <!-- onu-side uni hardware -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+                <name>ont2_uni1</name>
+              </component>
+            </hardware>
+
+      <!-- onu-side uni interface -->
+              <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+                <interface  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+                <name>ont2_uni1_intf</name>
+                </interface>
+          </interfaces>
+
+      <!-- onu-side sub-interface  -->
+            <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+              <interface  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+                <name>ont2_uni1_vsi1</name>
+              </interface>
+            </interfaces>
+
+
+  <!-- ani<->vani linktable -->
+  <link-table xmlns="urn:bbf:yang:bbf-link-table">
+    <link-table  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+         <from-interface>ani2</from-interface>
+    </link-table>
+    <link-table  xmlns:ns0="urn:ietf:params:xml:ns:netconf:base:1.0" ns0:operation="remove">
+         <from-interface>ont2_uni1_intf</from-interface>
+    </link-table>
+  </link-table>
+
+</root>
+</device>
+</managed-devices>
+</network-manager>
+
+</config>
+</edit-config>
+</rpc>

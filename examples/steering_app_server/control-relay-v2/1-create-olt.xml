@@ -1,0 +1,33 @@
+<rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1527307907657">
+   <edit-config>
+      <target>
+         <running />
+      </target>
+      <config>
+         <network-manager xmlns="urn:bbf:yang:obbaa:network-manager">
+            <managed-devices>
+               <device xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0" xc:operation="create">
+                  <name>AlticeLabs_OLT</name>
+                  <device-management>
+                     <type>OLT</type>
+                     <interface-version>1.0.0</interface-version>
+                     <vendor>alticelabs</vendor>
+                     <model>test</model>
+                     <device-connection>
+                        <connection-model>direct</connection-model>
+                        <password-auth>
+                           <authentication>
+                              <address>192.168.56.70</address>
+                              <management-port>830</management-port>
+                              <user-name>netconf</user-name>
+                              <password>netconf</password>
+                           </authentication>
+                        </password-auth>
+                     </device-connection>
+                  </device-management>
+               </device>
+            </managed-devices>
+         </network-manager>
+      </config>
+   </edit-config>
+</rpc>

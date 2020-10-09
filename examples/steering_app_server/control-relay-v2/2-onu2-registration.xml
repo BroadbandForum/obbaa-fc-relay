@@ -1,0 +1,155 @@
+<rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1527307907657">
+<edit-config>
+    <target>
+      <running/>
+    </target>
+    <config>
+
+      <network-manager xmlns="urn:bbf:yang:obbaa:network-manager">
+         <managed-devices>
+            <device>
+               <name>AlticeLabs_OLT</name>
+               <root>
+
+
+
+
+      <!-- olt-side vani -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>vani2</name>
+          <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:v-ani</type>
+          <v-ani xmlns="urn:bbf:yang:bbf-xponvani">
+            <channel-partition>scg1</channel-partition>
+            <onu-id>22</onu-id>
+            <expected-serial-number>PTIN048AAABB</expected-serial-number>
+            <preferred-channel-pair>cp1</preferred-channel-pair>
+          </v-ani>
+        </interface>
+      </interfaces>
+
+
+      <!-- olt-side venet -->
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>ont2_venet1</name>
+          <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:olt-v-enet</type>
+          <olt-v-enet xmlns="urn:bbf:yang:bbf-xponvani">
+            <lower-layer-interface>vani2</lower-layer-interface>
+          </olt-v-enet>
+        </interface>
+      </interfaces>
+
+
+
+    <!-- onu-side chassis -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component>
+                <name>ont2</name>
+                <class xmlns:ianahw="urn:ietf:params:xml:ns:yang:iana-hardware">ianahw:chassis</class>
+                <parent-rel-pos>1</parent-rel-pos>
+                <mfg-name>ALCL</mfg-name>
+                <model-name xmlns="urn:bbf:yang:bbf-hardware-extension">__________G-010G-Q__</model-name>
+              </component>
+            </hardware>
+
+      <!-- onu-side board -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component>
+                <name>board_ont2</name>
+                <class xmlns:bbf-hwt="urn:bbf:yang:bbf-hardware-types">bbf-hwt:board</class>
+                <parent>ont2</parent>
+                <parent-rel-pos>1</parent-rel-pos>
+                <mfg-name>ALCL</mfg-name>
+                <model-name xmlns="urn:bbf:yang:bbf-hardware-extension">__________G-010G-Q__</model-name>
+              </component>
+            </hardware>
+
+      <!-- onu-side cage -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component>
+                <name>ontcage_ont2</name>
+                <class xmlns:bbf-hwt="urn:bbf:yang:bbf-hardware-types">bbf-hwt:cage</class>
+                <parent>board_ont2</parent>
+                <parent-rel-pos>1</parent-rel-pos>
+                <model-name xmlns="urn:bbf:yang:bbf-hardware-extension">__________G-010G-Q__</model-name>
+              </component>
+            </hardware>
+
+      <!-- onu-side sfp -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component>
+                <name>ontsfp_ont2</name>
+                <class xmlns:bbf-hwt="urn:bbf:yang:bbf-hardware-types">bbf-hwt:transceiver</class>
+                <parent>ontcage_ont2</parent>
+                <parent-rel-pos>1</parent-rel-pos>
+                <model-name xmlns="urn:bbf:yang:bbf-hardware-extension">__________G-010G-Q__</model-name>
+              </component>
+            </hardware>
+
+      <!-- onu-side aniport -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component>
+                <name>ontaniport_ont2</name>
+                <class xmlns:bbf-hwt="urn:bbf:yang:bbf-hardware-types">bbf-hwt:transceiver-link</class>
+                <parent>ontsfp_ont2</parent>
+                <parent-rel-pos>1</parent-rel-pos>
+              </component>
+            </hardware>
+
+      <!-- onu-side ani -->
+            <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+              <interface>
+                <name>ani2</name>
+                <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:ani</type>
+                <port-layer-if xmlns="urn:bbf:yang:bbf-interface-port-reference">ontaniport_ont2</port-layer-if>
+                <ani xmlns="urn:bbf:yang:bbf-xponani">
+                  <management-gemport-aes-indicator>false</management-gemport-aes-indicator>
+                  <upstream-fec>true</upstream-fec>
+                  <onu-id>2</onu-id>
+                </ani>
+              </interface>
+            </interfaces>
+
+
+      <!-- onu-side uni hardware -->
+            <hardware xmlns="urn:ietf:params:xml:ns:yang:ietf-hardware">
+              <component>
+                <name>ont2_uni1</name>
+                <class xmlns:bbf-hwt="urn:bbf:yang:bbf-hardware-types">bbf-hwt:transceiver-link</class>
+                <parent>board_ont2</parent>
+                <parent-rel-pos>1</parent-rel-pos>
+              </component>
+            </hardware>
+
+      <!-- onu-side uni interface -->
+              <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+                <interface>
+                <name>ont2_uni1_intf</name>
+                  <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:ethernetCsmacd</type>
+                  <port-layer-if xmlns="urn:bbf:yang:bbf-interface-port-reference">ont2_uni1</port-layer-if>
+                    </interface>
+                  </interfaces>
+
+
+  <!-- ani<->vani linktable -->
+  <link-table xmlns="urn:bbf:yang:bbf-link-table">
+    <link-table>
+         <from-interface>ani2</from-interface>
+         <to-interface>vani2</to-interface>
+    </link-table>
+    <link-table>
+         <from-interface>ont2_uni1_intf</from-interface>
+         <to-interface>ont2_venet1</to-interface>
+    </link-table>
+  </link-table>
+
+
+           </root>
+        </device>
+        </managed-devices>
+        </network-manager>
+
+  </config>
+  </edit-config>
+  </rpc>
