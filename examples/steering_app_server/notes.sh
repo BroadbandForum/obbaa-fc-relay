@@ -11,6 +11,18 @@ python -m grpc_tools.protoc \
   --grpc_python_out=. \
   ./control_relay_service.proto
 
+python -m grpc_tools.protoc \
+  -I. \
+  --python_out=. \
+  --grpc_python_out=. \
+  ./tr477_cpri_service.proto
+
+python -m grpc_tools.protoc \
+  -I. \
+  --python_out=. \
+  --grpc_python_out=. \
+  ./tr477_cpri_message.proto
+
 #docker image
 docker build . \
   -t obbaa/steering_app_server \

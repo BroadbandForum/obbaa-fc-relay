@@ -22,6 +22,19 @@ RUN env/bin/python -m grpc_tools.protoc \
   --grpc_python_out=. \
   ./control_relay_service.proto
 
+RUN python -m grpc_tools.protoc \
+  -I. \
+  --python_out=. \
+  --grpc_python_out=. \
+  ./tr477_cpri_service.proto
+
+RUN env/bin/python -m grpc_tools.protoc \
+  -I. \
+  --python_out=. \
+  --grpc_python_out=. \
+  ./tr477_cpri_message.proto
+
+
 FROM python:3.7-slim as app
 
 RUN apt-get update && \

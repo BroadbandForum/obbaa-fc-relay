@@ -67,7 +67,7 @@ func Test_controlRelayHelloService_Hello(t *testing.T) {
 func Test_controlRelayPacketService_PacketTx(t *testing.T) {
 	type args struct {
 		ctx context.Context
-		in  *pb.ControlRelayPacket
+		in  *pb.CpriMsg
 	}
 
 	tests := []struct {
@@ -85,7 +85,7 @@ func Test_controlRelayPacketService_PacketTx(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, _ := test.s.PacketTx(test.args.ctx, test.args.in)
+			got, _ := test.s.CpriTx(test.args.ctx, test.args.in)
 			if !reflect.DeepEqual(got, test.want) != test.wantErr {
 				t.Errorf("controlRelayPacketService.PacketTx() = %v, want %v", got, test.want)
 			}
@@ -96,10 +96,10 @@ func Test_controlRelayPacketService_PacketTx(t *testing.T) {
 func Test_controlRelayPacketService_ListenForPacketRx(t *testing.T) {
 	server := controlRelayPacketService{}
 	mock := &mockControlRelayPacketService_ListenForPacketRxServer{}
-	server.ListenForPacketRx(&empty.Empty{}, mock)
+	server.ListenForCpriRx(&empty.Empty{}, mock)
 
 	client := mockClientConnectionTest(t, ":12345")
-	_, err := client.ListenForPacketRx(context.Background(), &empty.Empty{})
+	_, err := client.ListenForCpriRx(context.Background(), &empty.Empty{})
 	require.NoError(t, err)
 }
 
@@ -216,26 +216,26 @@ func mockServerTest(t *testing.T) {
 
 	// The & symbol points to the address of the stored value.
 	pb.RegisterControlRelayHelloServiceServer(server, &addHelloServ)
-	pb.RegisterControlRelayPacketServiceServer(server, &addPacketServ)
+	pb.RegisterCpriMessageServer(server, &addPacketServ)
 
 	go server.Serve(lis)
 }
 
-func mockClientConnectionTest(t *testing.T, address string) pb.ControlRelayPacketServiceClient {
+func mockClientConnectionTest(t *testing.T, address string) pb.CpriMessageClient {
 	mockServerTest(t)
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	require.NoError(t, err)
-	return pb.NewControlRelayPacketServiceClient(conn)
+	return pb.NewCpriMessageClient(conn)
 }
 
 // Mock of grpc server stream
 type mockControlRelayPacketService_ListenForPacketRxServer struct {
 	grpc.ServerStream
-	Packets []*pb.ControlRelayPacket
+	Packets []*pb.CpriMsg
 }
 
 // Mock function Send of grpc server stream
-func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Send(packet *pb.ControlRelayPacket) error {
+func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Send(packet *pb.CpriMsg) error {
 	_m.Packets = append(_m.Packets, packet)
 	return nil
 }
@@ -276,12 +276,17 @@ func MockHelloResponse() *pb.HelloResponse {
 }
 
 // MockControlRelayPacketRequestSuccess ...
-func MockControlRelayPacketRequest(name string) *pb.ControlRelayPacket {
-	return &pb.ControlRelayPacket{
-		DeviceName:      name,
-		DeviceInterface: "1234",
-		OriginatingRule: "",
-		Packet:          []byte{},
+func MockControlRelayPacketRequest(name string) *pb.CpriMsg {
+	metadata := pb.CpriMetaData{
+		Generic: &pb.GenericMetadata{
+			DeviceName:      name,
+			DeviceInterface: "1234",
+			OriginatingRule: "",
+		},
+	}
+	return &pb.CpriMsg{
+		MetaData: &metadata,
+		Packet:   []byte{},
 	}
 }
 

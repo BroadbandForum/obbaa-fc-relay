@@ -51,7 +51,7 @@ type plugin string
 
 type connectedDevice struct {
 	deviceName string
-	stream     pb.ControlRelayPacketService_ListenForPacketRxServer
+	stream     pb.CpriMessage_ListenForCpriRxServer
 	ipDevice   string
 	network    string
 	ch         chan string
@@ -62,7 +62,7 @@ type controlRelayHelloService struct {
 }
 
 type controlRelayPacketService struct {
-	pb.UnimplementedControlRelayPacketServiceServer
+	pb.UnimplementedCpriMessageServer
 }
 
 // Hello is one of the services provided by the proto, and is used mainly to
@@ -76,7 +76,7 @@ func (s *controlRelayHelloService) Hello(ctx context.Context, in *pb.HelloReques
 		return nil, nil
 	}
 
-	if in.GetDevice().DeviceName == "" {
+	if in.GetDevice() == nil || in.GetDevice().DeviceName == "" {
 		log.Warning("Standard gRPC Plugin: Device without name.")
 		return nil, nil
 	}
@@ -105,14 +105,14 @@ func (s *controlRelayHelloService) Hello(ctx context.Context, in *pb.HelloReques
 // packages to the SDN. PacketTx is invoked by the device.
 // When invoked, it receives a new packet, and will forward the packet to the
 // the core through the PacketInCallBack function.
-func (s *controlRelayPacketService) PacketTx(ctx context.Context, in *pb.ControlRelayPacket) (*empty.Empty, error) {
+func (s *controlRelayPacketService) CpriTx(ctx context.Context, in *pb.CpriMsg) (*empty.Empty, error) {
 
 	if in == nil || ctx == nil {
 		log.Warning("Standard gRPC Plugin: Device without information.")
 		return nil, nil
 	}
 
-	if in.DeviceName == "" {
+	if in.MetaData.Generic.DeviceName == "" {
 		log.Warning("Standard gRPC Plugin: Packet without name.")
 		return nil, nil
 	}
@@ -128,25 +128,25 @@ func (s *controlRelayPacketService) PacketTx(ctx context.Context, in *pb.Control
 	go func() {
 		core.PacketInCallBack(
 			core.ControlRelayPacketInternal{
-				Device_name:      in.DeviceName,
-				Device_interface: in.DeviceInterface,
-				Originating_rule: in.OriginatingRule,
+				Device_name:      in.MetaData.Generic.DeviceName,
+				Device_interface: in.MetaData.Generic.DeviceInterface,
+				Originating_rule: in.MetaData.Generic.OriginatingRule,
 				Packet:           in.Packet,
 			},
 		)
-	}() 
+	}()
 
 	log.Debug("Standard gRPC Plugin: PacketIn sent and received successfully by the Control Relay")
 
 	return &empty.Empty{}, nil
 }
 
-func (s *controlRelayPacketService) ListenForPacketRx(e *empty.Empty, stream pb.ControlRelayPacketService_ListenForPacketRxServer) error {
+func (s *controlRelayPacketService) ListenForCpriRx(e *empty.Empty, stream pb.CpriMessage_ListenForCpriRxServer) error {
 
 	if stream == nil {
 		return nil
 	}
-	
+
 	ch := make(chan string)
 	p, ok := peer.FromContext(stream.Context())
 
@@ -175,11 +175,16 @@ func (p plugin) PacketOutCallBack(packet core.ControlRelayPacketInternal) {
 		if devices[packet.Device_name].stream == nil {
 			return
 		}
-		if err := devices[packet.Device_name].stream.Send(&pb.ControlRelayPacket{
-			DeviceName:      packet.Device_name,
-			DeviceInterface: packet.Device_interface,
-			OriginatingRule: packet.Originating_rule,
-			Packet:          packet.Packet,
+		metadata := pb.CpriMetaData{
+			Generic: &pb.GenericMetadata{
+				DeviceName:      packet.Device_name,
+				DeviceInterface: packet.Device_interface,
+				OriginatingRule: packet.Originating_rule,
+			},
+		}
+		if err := devices[packet.Device_name].stream.Send(&pb.CpriMsg{
+			MetaData: &metadata,
+			Packet:   packet.Packet,
 		}); err != nil {
 			log.Warning("Standard gRPC Plugin: Failed to send the package to the device")
 			log.Warning("Standard gRPC Plugin: Device Name: ", packet.Device_name)
@@ -190,7 +195,7 @@ func (p plugin) PacketOutCallBack(packet core.ControlRelayPacketInternal) {
 		}
 	} else {
 		log.Warning("Standard gRPC Plugin: Device not found in internal cache")
-		log.Warning("Standard gRPC Plugin: DeviceName: ", packet.Device_name)
+		log.Warning("Standard gRPC Plugin: DeviceName: '" + packet.Device_name + "'")
 	}
 
 }
@@ -198,13 +203,13 @@ func (p plugin) PacketOutCallBack(packet core.ControlRelayPacketInternal) {
 func addDevice(name string, ip string, net string) bool {
 	mutex.Lock()
 	if devices[name] != nil {
-		if devices[name].stream.Context().Err() != nil {
+		if (devices[name].stream == nil) || (devices[name].stream.Context().Err() != nil) {
 			goto SkipToEnd
-		} 
+		}
 		log.Warning("Standard gRPC Plugin: Device ", name, " already connected")
 		mutex.Unlock()
 		return false
-		SkipToEnd:	
+	SkipToEnd:
 	}
 
 	devices[name] = &connectedDevice{
@@ -218,7 +223,7 @@ func addDevice(name string, ip string, net string) bool {
 	return true
 }
 
-func setDeviceStream(ip string, stream pb.ControlRelayPacketService_ListenForPacketRxServer, ch chan string) bool {
+func setDeviceStream(ip string, stream pb.CpriMessage_ListenForCpriRxServer, ch chan string) bool {
 	mutex.Lock()
 	for d := range devices {
 		if ip == devices[d].ipDevice {
@@ -256,7 +261,7 @@ func (p plugin) Start() {
 
 	// The & symbol points to the address of the stored value.
 	pb.RegisterControlRelayHelloServiceServer(grpcServer, &addHelloServ)
-	pb.RegisterControlRelayPacketServiceServer(grpcServer, &addPacketServ)
+	pb.RegisterCpriMessageServer(grpcServer, &addPacketServ)
 
 	if err := grpcServer.Serve(tcpListener); err != nil {
 		log.Fatal("Standard gRPC Plugin: Error: ", err)

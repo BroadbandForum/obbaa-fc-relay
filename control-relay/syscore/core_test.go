@@ -18,8 +18,8 @@
 * Control Relay core unit tests file
 *
 * Created by Filipe Claudio(Altice Labs) on 01/09/2020
-*/ 
- 
+ */
+
 package syscore
 
 import (
@@ -68,14 +68,14 @@ func Test_ClientServices(t *testing.T) {
 	c3 := mockNewControlRelayServiceClient(t, "0.0.0.0:12345")
 
 	type args struct {
-		s			serverController
-		controller  string
+		s          serverController
+		controller string
 	}
 
 	tests := []struct {
-		name   		string
-		s			*serverController
-		packet 		ControlRelayPacketInternal
+		name   string
+		s      *serverController
+		packet ControlRelayPacketInternal
 	}{
 		{"test1", c1, MockControlRelayPacketInternalRequest("AlticeLabs_OLT22")},
 		{"test2", c2, MockControlRelayPacketInternalRequest("AlticeLabs_OLT22")},
@@ -85,14 +85,13 @@ func Test_ClientServices(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			helloService(tt.s.helloService, tt.s.sdnAddress)
-			
- 			got, _ := tt.s.helloService.Hello(context.Background(), MockHelloRequest("AlticeLabs_OLT22"))
+
+			got, _ := tt.s.helloService.Hello(context.Background(), MockHelloRequest("AlticeLabs_OLT22"))
 			want := MockHelloResponse()
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("Hello() = %v, want %v", got, want)
 			}
-			
-			
+
 			go waitForPacketsOnStream(tt.s.packetService, tt.s.sdnAddress)
 		})
 	}
@@ -199,7 +198,7 @@ func mockNewServer() {
 
 	// The & symbol points to the address of the stored value.
 	pb.RegisterControlRelayHelloServiceServer(server, &addHelloServ)
-	pb.RegisterControlRelayPacketServiceServer(server, &addPacketServ)
+	pb.RegisterCpriMessageServer(server, &addPacketServ)
 	pb.RegisterControlRelayPacketFilterServiceServer(server, &addFilterServ)
 
 	go server.Serve(lis)
@@ -209,8 +208,8 @@ func mockNewControlRelayServiceClient(t *testing.T, address string) *serverContr
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	require.NoError(t, err)
 	addHelloServiceClient := pb.NewControlRelayHelloServiceClient(conn)
-	addPacketServiceClient := pb.NewControlRelayPacketServiceClient(conn)
-	
+	addPacketServiceClient := pb.NewCpriMessageClient(conn)
+
 	s := &serverController{
 		dial:          conn,
 		helloService:  addHelloServiceClient,
@@ -224,11 +223,11 @@ func mockNewControlRelayServiceClient(t *testing.T, address string) *serverContr
 // Mock of grpc server stream
 type mockControlRelayPacketService_ListenForPacketRxServer struct {
 	grpc.ServerStream
-	Packets []*pb.ControlRelayPacket
+	Packets []*pb.CpriMsg
 }
 
 // Mock function Send of grpc server stream
-func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Send(packet *pb.ControlRelayPacket) error {
+func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Send(packet *pb.CpriMsg) error {
 	_m.Packets = append(_m.Packets, packet)
 	return nil
 }
@@ -255,7 +254,7 @@ func MockHelloRequest(name string) *pb.HelloRequest {
 			Device: &pb.DeviceHello{
 				DeviceName: name,
 			},
-		},	
+		},
 	}
 }
 
@@ -271,11 +270,16 @@ func MockHelloResponse() *pb.HelloResponse {
 }
 
 // MockControlRelayPacketRequest ...
-func MockControlRelayPacketRequest(name string) *pb.ControlRelayPacket {
-	return &pb.ControlRelayPacket{
-		DeviceName:      name,
-		DeviceInterface: "1234",
-		OriginatingRule: "",
-		Packet:          []byte{},
+func MockControlRelayPacketRequest(name string) *pb.CpriMsg {
+	metadata := pb.CpriMetaData{
+		Generic: &pb.GenericMetadata{
+			DeviceName:      name,
+			DeviceInterface: "1234",
+			OriginatingRule: "",
+		},
+	}
+	return &pb.CpriMsg{
+		MetaData: &metadata,
+		Packet:   []byte{},
 	}
 }

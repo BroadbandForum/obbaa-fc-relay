@@ -18,7 +18,7 @@
 * Control Relay OLT simulator file
 *
 * Created by Filipe Claudio(Altice Labs) on 01/09/2020
-*/ 
+ */
 
 package main
 
@@ -35,14 +35,14 @@ import (
 	"google.golang.org/grpc"
 )
 
-var address 		= flag.String("address", "localhost:50052", "Address for standar grpc plugin")
-var packetPath 		= flag.String("packet_path", "./ont-dhcp.bin", "Path of the captured packet")
-var deviceName 		= flag.String("olt_serial", "AlticeLabs_OLT22", "Identification of the OLT")
-var slot			= flag.String("olt_port", "", "Olt port number")
-var pon				= flag.String("pon", "", "Pon")
-var onuID			= flag.String("onu_id", "", "Onu ID")
+var address = flag.String("address", "localhost:50052", "Address for standar grpc plugin")
+var packetPath = flag.String("packet_path", "./ont-dhcp.bin", "Path of the captured packet")
+var deviceName = flag.String("olt_serial", "AlticeLabs_OLT22", "Identification of the OLT")
+var slot = flag.String("olt_port", "", "Olt port number")
+var pon = flag.String("pon", "", "Pon")
+var onuID = flag.String("onu_id", "", "Onu ID")
 var deviceInterface = ""
-var count 			= 0
+var count = 0
 
 func main() {
 	flag.Parse()
@@ -61,7 +61,7 @@ func main() {
 	defer conn.Close()
 
 	addHelloService := pb.NewControlRelayHelloServiceClient(conn)
-	addClientService := pb.NewControlRelayPacketServiceClient(conn)
+	addClientService := pb.NewCpriMessageClient(conn)
 
 	_, err := addHelloService.Hello(context.Background(), &pb.HelloRequest{
 		LocalEndpointHello: &pb.HelloRequest_Device{
@@ -82,21 +82,28 @@ func main() {
 	go waitForPacketsOnStream(addClientService)
 	for {
 		sendPacket(addClientService, buf)
+		time.Sleep(5 * time.Second)
 	}
 }
 
-func sendPacket(client pb.ControlRelayPacketServiceClient, buf []byte) {
-	_, err := client.PacketTx(context.Background(), &pb.ControlRelayPacket{
-		DeviceName:      *deviceName,
-		DeviceInterface: deviceInterface,
-		Packet:          buf})
+func sendPacket(client pb.CpriMessageClient, buf []byte) {
+	metadata := pb.CpriMetaData{
+		Generic: &pb.GenericMetadata{
+			DeviceName:      *deviceName,
+			DeviceInterface: deviceInterface,
+		},
+	}
+
+	_, err := client.CpriTx(context.Background(), &pb.CpriMsg{
+		MetaData: &metadata,
+		Packet:   buf})
 	if err != nil {
 		log.Fatalf("Error: %v", err)
 	}
 }
 
-func waitForPacketsOnStream(client pb.ControlRelayPacketServiceClient) {
-	stream, err := client.ListenForPacketRx(context.Background(), &empty.Empty{})
+func waitForPacketsOnStream(client pb.CpriMessageClient) {
+	stream, err := client.ListenForCpriRx(context.Background(), &empty.Empty{})
 
 	if err != nil {
 		log.Println("ListenForPacketRx Service failed")
@@ -113,7 +120,7 @@ func waitForPacketsOnStream(client pb.ControlRelayPacketServiceClient) {
 		}
 		if packet != nil {
 			count++
-			log.Println("Request number: ", count)
+			log.Println("Packet Received. Request number: ", count)
 			/* log.Println("Successfully received package: ", packet)
 			log.Println("######### Packet Out #########")
 			log.Println("DeviceName: ", packet.DeviceName)

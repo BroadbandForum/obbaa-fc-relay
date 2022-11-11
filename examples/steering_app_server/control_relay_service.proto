@@ -1,15 +1,11 @@
 syntax = "proto3";
 package control_relay_service.v1;
+option go_package = "control_relay/pb";
 
 import "google/protobuf/empty.proto";
 
 service ControlRelayHelloService {
   rpc Hello (HelloRequest) returns (HelloResponse) {}
-}
-
-service ControlRelayPacketService {
-  rpc PacketTx (ControlRelayPacket) returns (google.protobuf.Empty) {}
-  rpc ListenForPacketRx (google.protobuf.Empty) returns (stream ControlRelayPacket) {}  
 }
 
 message ControllerHello {
@@ -31,12 +27,4 @@ message HelloResponse {
     ControllerHello   controller = 1;
     DeviceHello       device = 2;
   }
-}
-
-message ControlRelayPacket {
-  string   device_name = 1;
-  string   device_interface = 2;
-  string   originating_rule = 3;
-
-  bytes    packet = 10;
 }

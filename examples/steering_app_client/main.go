@@ -18,7 +18,7 @@
 * Control Relay SDN controller simulator file
 *
 * Created by Filipe Claudio(Altice Labs) on 01/09/2020
-*/  
+ */
 
 package main
 
@@ -29,13 +29,13 @@ import (
 	"io/ioutil"
 	"log"
 	pb "sim_sdn_client/pb"
-    "time"
+	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
 )
 
-var address = flag.String("control_relay_address", "192.168.56.102:50055", "Control Relay Address")
+var address = flag.String("control_relay_address", "localhost:50055", "Control Relay Address")
 var packetPath = flag.String("packet_path", "data/ont-dhcp.bin", "Path of the captured packet")
 var deviceName = flag.String("olt_serial", "olt1", "Identification of the OLT")
 var controlAppName = "controlAppName"
@@ -51,14 +51,14 @@ type ControlRelayPacketInternal struct {
 }
 
 func main() {
-	
+
 	flag.Parse()
 	buf, errReadFile := ioutil.ReadFile(*packetPath)
 	if errReadFile != nil {
 		log.Fatalf("Packet not found %v", errReadFile)
 	}
 	boot(buf)
-	
+
 	conn, err := grpc.Dial(*address, grpc.WithInsecure())
 	if err != nil {
 		log.Println("Failed to establish connection with the Control Relay")
@@ -68,8 +68,8 @@ func main() {
 	}
 
 	addHelloService := pb.NewControlRelayHelloServiceClient(conn)
-	addClientService := pb.NewControlRelayPacketServiceClient(conn)
-	addFilterService := pb.NewControlRelayPacketFilterServiceClient(conn)
+	addClientService := pb.NewCpriMessageClient(conn)
+	//addFilterService := pb.NewControlRelayPacketFilterServiceClient(conn)
 
 	response, err := addHelloService.Hello(context.Background(), &pb.HelloRequest{
 		LocalEndpointHello: &pb.HelloRequest_Controller{
@@ -86,22 +86,29 @@ func main() {
 		controlAppName = response.GetDevice().DeviceName
 	}
 
-	setControlRelayPacketFilter(addFilterService)
+	//setControlRelayPacketFilter(addFilterService)
 	go waitForPacketsOnStream(addClientService)
 
-	for {	
+	for {
 		sendPacket(addClientService, *packets[0])
-		sendPacket(addClientService, *packets[1])
-		sendPacket(addClientService, *packets[2])
+		//sendPacket(addClientService, *packets[1])
+		//sendPacket(addClientService, *packets[2])
+		time.Sleep(10 * time.Second)
 	}
 }
 
-func sendPacket(client pb.ControlRelayPacketServiceClient, packet ControlRelayPacketInternal) {
-	_, err := client.PacketTx(context.Background(), &pb.ControlRelayPacket{
-		DeviceName:      packet.Device_name,
-		DeviceInterface: packet.Device_interface,
-		OriginatingRule: packet.Originating_rule,
-		Packet:          packet.Packet,
+func sendPacket(client pb.CpriMessageClient, packet ControlRelayPacketInternal) {
+	metadata := pb.CpriMetaData{
+		Generic: &pb.GenericMetadata{
+			DeviceName:      packet.Device_name,
+			DeviceInterface: packet.Device_interface,
+			OriginatingRule: packet.Originating_rule,
+		},
+	}
+
+	_, err := client.CpriTx(context.Background(), &pb.CpriMsg{
+		MetaData: &metadata,
+		Packet:   packet.Packet,
 	})
 	if err != nil {
 		log.Fatalf("Error: %v", err)
@@ -117,8 +124,8 @@ func addPacket(deviceName string, deviceInterface string, rule string, buf []byt
 	})
 }
 
-func waitForPacketsOnStream(client pb.ControlRelayPacketServiceClient) {
-	stream, err := client.ListenForPacketRx(context.Background(), &empty.Empty{})
+func waitForPacketsOnStream(client pb.CpriMessageClient) {
+	stream, err := client.ListenForCpriRx(context.Background(), &empty.Empty{})
 
 	if err != nil {
 		log.Println("ListenForPacketRx Service failed")
@@ -162,7 +169,7 @@ func addFilter(include bool, devicename string, deviceinterface string, rule str
 			}
 			return pb.ControlRelayPacketFilterList_ControlRelayPacketFilter_EXCLUDE
 		}(),
-		DeviceName: devicename,
+		DeviceName:      devicename,
 		DeviceInterface: deviceinterface,
 		OriginatingRule: rule,
 	})
@@ -184,7 +191,6 @@ func on() {
 		time.Sleep(10 * time.Second)
 	}
 }
-
 
 const INCLUDE = true
 const EXCLUDE = false
@@ -211,9 +217,9 @@ func boot(buf []byte) {
 	addFilter(INCLUDE, "AlticeLabs_OLT22", "2", "aaaa")
 	addFilter(INCLUDE, "AlticeLabs_OLT22253453", "2", "bbb")
 	addFilter(INCLUDE, "AlticeLabs_OLT25345342", "", "")
-	addFilter(EXCLUDE, "", "", "")	
+	addFilter(EXCLUDE, "", "", "")
 
-	addPacket("AlticeLabs_OLT22", "1", "", buf)
+	addPacket("OLT1", "1", "", buf)
 	addPacket("AlticeLabs_OLT222", "1", "", buf)
 	addPacket("AlticeLabs_OLT223", "1", "", buf)
 	addPacket("AlticeLabs_OLT2223442", "1", "", buf)

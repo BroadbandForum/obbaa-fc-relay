@@ -18,7 +18,7 @@
 * Control Relay core file
 *
 * Created by Filipe Claudio(Altice Labs) on 01/09/2020
-*/
+ */
 
 package syscore
 
@@ -60,14 +60,13 @@ var (
 )
 
 var (
-	lis, errLis          = net.Listen("tcp", "0.0.0.0:"+CONTROL_RELAY_PORT)
 	grpcServer           = grpc.NewServer()
 	sshConn, errSSH      = netconf.DialSSH("", &ssh.ClientConfig{})
 	runningPlugins       = make(map[string]*RunningPluginsStruct)
 	clientControllerList = make(map[string]*clientController)
 	serverControllerList = make(map[string]*serverController)
 	obbaaDeviceList      = make(map[string]string)
-	recordPluginsNames	 = []string{}	
+	recordPluginsNames   = []string{}
 	mutex                = sync.RWMutex{}
 )
 
@@ -105,7 +104,7 @@ type Plugin interface {
 type serverController struct {
 	dial          *grpc.ClientConn
 	helloService  pb.ControlRelayHelloServiceClient
-	packetService pb.ControlRelayPacketServiceClient
+	packetService pb.CpriMessageClient
 	sdnAddress    string
 }
 
@@ -117,7 +116,7 @@ func helloService(addHelloService pb.ControlRelayHelloServiceClient, controller 
 			},
 		},
 	})
-    
+
 	if err != nil {
 		log.Warning("Core: Hello Service failed")
 		log.Warning("Core: Could not create a client connection to the given target: ")
@@ -130,17 +129,17 @@ func helloService(addHelloService pb.ControlRelayHelloServiceClient, controller 
 
 // waitForPacketsOnStream is responsable for receiving packages through the
 // SDN server stream and fowarding to a plugin, invoking PacketOutCallBack
-func waitForPacketsOnStream(addPacketService pb.ControlRelayPacketServiceClient, controller string) {
-	stream, err := addPacketService.ListenForPacketRx(context.Background(), &empty.Empty{})
-	
+func waitForPacketsOnStream(addPacketService pb.CpriMessageClient, controller string) {
+	stream, err := addPacketService.ListenForCpriRx(context.Background(), &empty.Empty{})
+
 	if err != nil {
-		log.Warning("Core: ListenForPacketRx Service failed.")
+		log.Warning("Core: ListenForCpriRx Service failed.")
 		log.Warning("Core: Could not create a client connection to the given target: ")
 		log.Warning("Core: Target is a Server SDN Controller: ", controller)
 		log.Error("Core: Error: ", err)
 		return
 	}
-	
+
 	go on()
 	for {
 		packet, err := stream.Recv()
@@ -154,14 +153,14 @@ func waitForPacketsOnStream(addPacketService pb.ControlRelayPacketServiceClient,
 			var plugin Plugin
 
 			p := ControlRelayPacketInternal{
-				Device_name:      packet.DeviceName,
-				Device_interface: packet.DeviceInterface,
-				Originating_rule: packet.OriginatingRule,
+				Device_name:      packet.MetaData.Generic.DeviceName,
+				Device_interface: packet.MetaData.Generic.DeviceInterface,
+				Originating_rule: packet.MetaData.Generic.OriginatingRule,
 				Packet:           packet.Packet,
 			}
 
-			if plugin = getPlugin(packet.DeviceName); plugin == nil {
-				go retryPacketOutCallBack(packet.DeviceName, p)
+			if plugin = getPlugin(packet.MetaData.Generic.DeviceName); plugin == nil {
+				go retryPacketOutCallBack(packet.MetaData.Generic.DeviceName, p)
 			} else {
 				plugin.PacketOutCallBack(p)
 			}
@@ -183,18 +182,26 @@ func PacketInCallBack(packet ControlRelayPacketInternal) {
 
 	for _, controller := range clientControllerList {
 		if controller.stream == nil {
+			log.Debug("Null stream for controller " + controller.ip)
 			continue
 		}
 
 		if !packetAllowedInFilter(*controller, &packet) {
+			log.Debug("Packet not allowed in filter for controller" + controller.ip)
 			continue
 		}
-		
-		if err := controller.stream.Send(&pb.ControlRelayPacket{
-			DeviceName:      packet.Device_name,
-			DeviceInterface: packet.Device_interface,
-			OriginatingRule: packet.Originating_rule,
-			Packet:          packet.Packet,
+
+		metadata := pb.CpriMetaData{
+			Generic: &pb.GenericMetadata{
+				DeviceName:      packet.Device_name,
+				DeviceInterface: packet.Device_interface,
+				OriginatingRule: packet.Originating_rule,
+			},
+		}
+
+		if err := controller.stream.Send(&pb.CpriMsg{
+			MetaData: &metadata,
+			Packet:   packet.Packet,
 		}); err != nil {
 			log.Warning("Core: Failed to send the package")
 			log.Warning("Core: DeviceName: ", packet.Device_name)
@@ -206,11 +213,18 @@ func PacketInCallBack(packet ControlRelayPacketInternal) {
 	}
 
 	for _, controller := range serverControllerList {
-		_, err := controller.packetService.PacketTx(context.Background(), &pb.ControlRelayPacket{
-			DeviceName:      packet.Device_name,
-			DeviceInterface: packet.Device_interface,
-			OriginatingRule: packet.Originating_rule,
-			Packet:          packet.Packet,
+
+		metadata := pb.CpriMetaData{
+			Generic: &pb.GenericMetadata{
+				DeviceName:      packet.Device_name,
+				DeviceInterface: packet.Device_interface,
+				OriginatingRule: packet.Originating_rule,
+			},
+		}
+
+		_, err := controller.packetService.CpriTx(context.Background(), &pb.CpriMsg{
+			MetaData: &metadata,
+			Packet:   packet.Packet,
 		})
 
 		if err != nil {
@@ -227,13 +241,13 @@ func PacketInCallBack(packet ControlRelayPacketInternal) {
 	}
 }
 
-// packetAllowedInFilter is a function that is actually responsible for the 
+// packetAllowedInFilter is a function that is actually responsible for the
 // checking if the packet matches the filter
 func packetAllowedInFilter(controller clientController, packet *ControlRelayPacketInternal) bool {
 	if controller.filter == nil {
 		return true
 	}
-	
+
 	for _, filter := range controller.filter.Filter {
 		if filter.Type == pb.ControlRelayPacketFilterList_ControlRelayPacketFilter_EXCLUDE {
 			continue
@@ -275,7 +289,7 @@ func doFiltering(filter string, prop string) bool {
 // Control App is the server and SDN M&C as gRPC Client
 // CONTROL APP SERVER  <-----  CLIENT SDN CONTROLLER
 type clientController struct {
-	stream  pb.ControlRelayPacketService_ListenForPacketRxServer
+	stream  pb.CpriMessage_ListenForCpriRxServer
 	filter  *pb.ControlRelayPacketFilterList
 	ip      string
 	network string
@@ -287,7 +301,7 @@ type controlRelayHelloService struct {
 }
 
 type controlRelayPacketService struct {
-	pb.UnimplementedControlRelayPacketServiceServer
+	pb.UnimplementedCpriMessageServer
 }
 
 type controlRelayPacketFilterService struct {
@@ -329,7 +343,7 @@ func (c *controlRelayHelloService) Hello(ctx context.Context, in *pb.HelloReques
 // packages to the devices. PacketTx is invoked by the SDN client.
 // When invoked, it receives a new package, and will choose the specific plugin
 // to forward the packet to the device through the PacketOutCallBack function.
-func (c *controlRelayPacketService) PacketTx(ctx context.Context, in *pb.ControlRelayPacket) (*empty.Empty, error) {
+func (c *controlRelayPacketService) CpriTx(ctx context.Context, in *pb.CpriMsg) (*empty.Empty, error) {
 
 	/* log.Info(
 		"Core: *** PACKET OUT ***",
@@ -340,14 +354,14 @@ func (c *controlRelayPacketService) PacketTx(ctx context.Context, in *pb.Control
 	var plugin Plugin
 
 	packet := ControlRelayPacketInternal{
-		Device_name:      in.DeviceName,
-		Device_interface: in.DeviceInterface,
-		Originating_rule: in.OriginatingRule,
+		Device_name:      in.MetaData.Generic.DeviceName,
+		Device_interface: in.MetaData.Generic.DeviceInterface,
+		Originating_rule: in.MetaData.Generic.OriginatingRule,
 		Packet:           in.Packet,
 	}
 
-	if plugin = getPlugin(in.GetDeviceName()); plugin == nil {
-		go retryPacketOutCallBack(in.GetDeviceName(), packet)
+	if plugin = getPlugin(in.MetaData.Generic.DeviceName); plugin == nil {
+		go retryPacketOutCallBack(in.MetaData.Generic.DeviceName, packet)
 		return &empty.Empty{}, nil
 	}
 
@@ -360,7 +374,7 @@ func (c *controlRelayPacketService) PacketTx(ctx context.Context, in *pb.Control
 // ListenForPacketRx is one of the services provided by the proto
 // is invoked by the SDN client, receives a stream that is kept open
 // to send packets to the SDN client
-func (*controlRelayPacketService) ListenForPacketRx(e *empty.Empty, stream pb.ControlRelayPacketService_ListenForPacketRxServer) error {
+func (*controlRelayPacketService) ListenForCpriRx(e *empty.Empty, stream pb.CpriMessage_ListenForCpriRxServer) error {
 
 	if stream == nil {
 		return nil
@@ -456,7 +470,7 @@ func addClientController(ip string, net string) bool {
 	return true
 }
 
-func setClientControllerStream(ip string, stream pb.ControlRelayPacketService_ListenForPacketRxServer, ch chan string) bool {
+func setClientControllerStream(ip string, stream pb.CpriMessage_ListenForCpriRxServer, ch chan string) bool {
 	mutex.Lock()
 	if controller, ok := clientControllerList[ip]; ok {
 		controller.stream = stream
@@ -498,7 +512,8 @@ func deleteClientController(ip string) bool {
 // case the services that are declared in the proto file
 func startNorthboundServer() {
 
-	log.Info("Core: Initializing Northbound gRPC server")
+	lis, errLis := net.Listen("tcp", "0.0.0.0:"+CONTROL_RELAY_PORT)
+	log.Info("Core: Initializing Northbound gRPC server on:", lis.Addr().String())
 	if errLis != nil {
 		log.Fatal("Core: Could not initialize Northbound gRPC server")
 		log.Fatal("Core: Error:", errLis)
@@ -510,7 +525,7 @@ func startNorthboundServer() {
 	addFilterServiceServer := controlRelayPacketFilterService{}
 
 	pb.RegisterControlRelayHelloServiceServer(grpcServer, &addHelloServiceServer)
-	pb.RegisterControlRelayPacketServiceServer(grpcServer, &addPacketServiceServer)
+	pb.RegisterCpriMessageServer(grpcServer, &addPacketServiceServer)
 	pb.RegisterControlRelayPacketFilterServiceServer(grpcServer, &addFilterServiceServer)
 
 	if err := grpcServer.Serve(lis); err != nil {
@@ -542,7 +557,7 @@ func startNorthboundClient(sdnAddress string) bool {
 	addHelloServiceClient := pb.NewControlRelayHelloServiceClient(connSteeringApp)
 	helloService(addHelloServiceClient, sdnAddress)
 
-	addPacketServiceClient := pb.NewControlRelayPacketServiceClient(connSteeringApp)
+	addPacketServiceClient := pb.NewCpriMessageClient(connSteeringApp)
 	go waitForPacketsOnStream(addPacketServiceClient, sdnAddress)
 
 	serverControllerList[sdnAddress] = &serverController{
@@ -598,6 +613,8 @@ func getListOfDevicesFromOBBAA() {
 	}
 	var devices Devices
 
+	log.Debug("Reply from OB-BAA", reply)
+
 	err = xml.Unmarshal([]byte(reply.Data), &devices)
 	if err != nil {
 		log.Warning("Core: Erro: ", err)
@@ -609,7 +626,8 @@ func getListOfDevicesFromOBBAA() {
 	for _, d := range devices.Devices {
 		newListOfDevicesFromOBBAA[d.DeviceName] = d.Vendor + "-" + d.Type + "-" + d.Model + "-" + d.Version
 	}
-	
+	log.Info(newListOfDevicesFromOBBAA)
+
 	// if the internal list is different from yhe new one, it will update
 	if !reflect.DeepEqual(obbaaDeviceList, newListOfDevicesFromOBBAA) {
 		mutex.Lock()
@@ -641,7 +659,7 @@ func readXMLfile() string {
 	return string(bytes)
 }
 
-func startPlugin(path string) (error) {
+func startPlugin(path string) error {
 
 	log.Info("Core: starting plugin", path)
 	// load module
@@ -706,13 +724,13 @@ func addPlugin(plug Plugin, path string) {
 }
 
 func stopPlugin(p string) {
-	log.Info("Stopping plugin:", p);
+	log.Info("Stopping plugin:", p)
 	name := strings.TrimSuffix(p, filepath.Ext(p))
 
 	plugin := func() Plugin {
 		for value, a := range runningPlugins {
 			if value == name {
-			    p = a.plugin_path
+				p = a.plugin_path
 				return a.plugin_interface
 			}
 		}
@@ -836,7 +854,7 @@ func checkPluginName(p string) bool {
 			log.Error("The name of the new plugin has already have been used, please choose another name!")
 			os.Remove(SHARED_FOLDER + "/" + p)
 			return false
-		} 
+		}
 	}
 	return true
 }
@@ -852,7 +870,7 @@ func StartControlRelay() {
 		getListOfDevicesFromOBBAA()
 	}
 
-	log.Info("Starting client Northbound Connections");
+	log.Info("Starting client Northbound Connections")
 
 	servers := split(os.Getenv("SDN_MC_SERVER_LIST"), ";")
 	for _, address := range servers {
@@ -878,15 +896,15 @@ func StartControlRelay() {
 
 	arrayOfStandardPlugins := getPluginsFromTheFolder(STANDARD_FOLDER)
 	for _, path := range arrayOfStandardPlugins {
-		startPlugin(path) 
+		startPlugin(path)
 	}
-	
+
 	arrayOfLinkedPlugins := getPluginsFromTheFolder(PRIVATE_FOLDER)
 	for _, path := range arrayOfLinkedPlugins {
 		err := startPlugin(path)
 		if err != nil {
 			os.Remove(path)
-		} 
+		}
 	}
 
 	log.Info("Control Relay app running")
@@ -901,18 +919,18 @@ func StartControlRelay() {
 				go stopPlugin(p)
 			}
 		}
-		
+
 		// doFiltering for new plugins to upload
 		if diff := equals(arrayOfNewPlugins, arrayOfLinkedPlugins); len(diff) != 0 {
 			log.Warning("Core: Found new plugin: ", diff)
 			for _, p := range diff {
-				if checkPluginName(p) { 
+				if checkPluginName(p) {
 					CopyFile(SHARED_FOLDER+"/"+p, PRIVATE_FOLDER+"/"+p)
-					go startPlugin(PRIVATE_FOLDER+"/"+p)
+					go startPlugin(PRIVATE_FOLDER + "/" + p)
 				}
 			}
 		}
-		
+
 		arrayOfLinkedPlugins = arrayOfNewPlugins
 	}
 }
@@ -928,22 +946,27 @@ func init() {
 	}
 
 	if os.Getenv("SDN_MC_SERVER_PORT") == "" {
-		log.Info("SDN_MC_SERVER_PORT environment variable was not specified, the value default is :50053")
-		os.Setenv("SDN_MC_SERVER_PORT", "50053")
+		SDN_MC_SERVER_PORT = "50053"
+		log.Info("SDN_MC_SERVER_PORT environment variable was not specified, the value default is :" + SDN_MC_SERVER_PORT)
+		//make sure the local variables and the env variables are in sync
+		os.Setenv("SDN_MC_SERVER_PORT", SDN_MC_SERVER_PORT)
 	}
 
 	if os.Getenv("CONTROL_RELAY_PORT") == "" {
-		log.Info("CONTROL_RELAY_PORT environment variable was not specified, the value default is :50055")
-		os.Setenv("CONTROL_RELAY_PORT", "50055")
+		CONTROL_RELAY_PORT = "50055"
+		log.Info("CONTROL_RELAY_PORT environment variable was not specified, the value default is :" + CONTROL_RELAY_PORT)
+		os.Setenv("CONTROL_RELAY_PORT", CONTROL_RELAY_PORT)
 	}
 
 	if os.Getenv("OBBAA_ADDRESS") == "" {
-		log.Info("OBBAA_ADDRESS environment variable was not specidied, the value default is 192.168.56.102")
-		os.Setenv("OBBAA_ADDRESS", "192.168.56.102")
+		OBBAA_ADDRESS = "192.168.56.102"
+		log.Info("OBBAA_ADDRESS environment variable was not specidied, the value default is " + OBBAA_ADDRESS)
+		os.Setenv("OBBAA_ADDRESS", OBBAA_ADDRESS)
 	}
 
 	if os.Getenv("OBBAA_PORT") == "" {
-		log.Info("OBBAA_PORT environment variable was not specidied, the value default is :9292")
+		OBBAA_PORT = "9292"
+		log.Info("OBBAA_PORT environment variable was not specidied, the value default is :" + OBBAA_PORT)
 		os.Setenv("OBBAA_PORT", "9292")
 	}
 	log.Info("OBBAA_PORT environment variable:", os.Getenv("OBBAA_PORT"))
@@ -955,12 +978,14 @@ func init() {
 	}
 
 	if os.Getenv("SHARED_FOLDER") == "" {
-		os.Setenv("SHARED_FOLDER", "./plugin-repo")
+		SHARED_FOLDER = "./plugin-repo"
+		os.Setenv("SHARED_FOLDER", SHARED_FOLDER)
 	}
 	log.Info("SHARED_FOLDER environment variable:", os.Getenv("SHARED_FOLDER"))
 
 	if os.Getenv("PRIVATE_FOLDER") == "" {
-		os.Setenv("PRIVATE_FOLDER", "./plugin-enabled")
+		PRIVATE_FOLDER = "./plugin-enabled"
+		os.Setenv("PRIVATE_FOLDER", PRIVATE_FOLDER)
 	}
 	log.Info("PRIVATE_FOLDER environment variable:", os.Getenv("PRIVATE_FOLDER"))
 }

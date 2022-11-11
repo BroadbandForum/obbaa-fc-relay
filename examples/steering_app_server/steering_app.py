@@ -22,6 +22,7 @@
 
 from concurrent import futures
 from dataclasses import dataclass
+#from importlib.metadata import metadata
 import logging
 import sys
 import time
@@ -34,6 +35,8 @@ from scapy.all import *
 from google.protobuf import struct_pb2
 import control_relay_service_pb2 as service
 import control_relay_service_pb2_grpc as rpc
+import tr477_cpri_service_pb2_grpc as rpc_cpri
+import tr477_cpri_message_pb2 as msg_cpri
 
 
 
@@ -42,9 +45,12 @@ devices = []
 packets = []
 count = 0
 
-@dataclass
+#disabled as workaround for ModuleNotFoundError: No module named 'importlib.metadata'
+#@dataclass
 class ConnectedDevices:
     deviceName: str
+    def __init__(self, deviceName: str):
+        self.deviceName = deviceName
         
 
 with open("control-relay-v2/3-onu1-activation-to-bng1.xml") as f:
@@ -88,7 +94,7 @@ class ControllerHelloService(rpc.ControlRelayHelloServiceServicer):
     
         return service.HelloResponse()
            
-class ControllerPacketService(rpc.ControlRelayPacketServiceServicer):
+class ControllerPacketService(rpc_cpri.CpriMessageServicer):
 
     obbaaAddress = "host"
     obbaaPort = "155"
@@ -96,9 +102,9 @@ class ControllerPacketService(rpc.ControlRelayPacketServiceServicer):
     def __init__(self, obbaaAddress, obbaaPort):
         self.obbaaAddress = obbaaAddress
         self.obbaaPort = obbaaPort
-        super(rpc.ControlRelayPacketServiceServicer, self).__init__()
+        super(rpc_cpri.CpriMessageServicer, self).__init__()
 
-    def PacketTx(self, request, context):
+    def CpriTx(self, request, context):
         """
         packet = Ether(request.packet)
         s = (
@@ -144,29 +150,45 @@ class ControllerPacketService(rpc.ControlRelayPacketServiceServicer):
         
         return struct_pb2.Value()
         
-    def ListenForPacketRx(self, request, context):
-        a = service.ControlRelayPacket(
-            device_name="AlticeLabs_OLT22",
-            device_interface="1",
-            originating_rule="",
+    def ListenForCpriRx(self, request, context):
+        a = msg_cpri.CpriMsg(
+            meta_data = msg_cpri.CpriMetaData(
+                generic = msg_cpri.GenericMetadata(
+                    device_name="AlticeLabs_OLT22",
+                    device_interface="1",
+                    originating_rule="",
+                )
+            ),
             packet=None  
         )
-        b = service.ControlRelayPacket(
-            device_name="AlticeLabs_OLT222",
-            device_interface="1",
-            originating_rule="",
+        b = msg_cpri.CpriMsg(
+            meta_data = msg_cpri.CpriMetaData(
+                generic = msg_cpri.GenericMetadata(
+                    device_name="AlticeLabs_OLT22",
+                    device_interface="1",
+                    originating_rule="",
+                )
+            ),
             packet=None  
         )
-        c = service.ControlRelayPacket(
-            device_name="AlticeLabs_OLT223",
-            device_interface="2",
-            originating_rule="",
+        c = msg_cpri.CpriMsg(
+            meta_data = msg_cpri.CpriMetaData(
+                generic = msg_cpri.GenericMetadata(
+                    device_name="AlticeLabs_OLT223",
+                    device_interface="2",
+                    originating_rule="",
+                )
+            ),
             packet=None
         )
-        d = service.ControlRelayPacket(
-            device_name="AlticeLabs_OLT1994",
-            device_interface="2",
-            originating_rule="",
+        d = msg_cpri.CpriMsg(
+            meta_data = msg_cpri.CpriMetaData(
+                generic = msg_cpri.GenericMetadata(
+                    device_name="AlticeLabs_OLT1994",
+                    device_interface="2",
+                    originating_rule="",
+                )
+            ),
             packet=None
         )
         
@@ -176,11 +198,12 @@ class ControllerPacketService(rpc.ControlRelayPacketServiceServicer):
         packets.append(d)
         
 
-        time.sleep(20)
+        time.sleep(5)
 
         while True:
             for packet in packets:
-                yield packet
+                yield packet                
+            time.sleep(10)
                 
            
         
@@ -191,7 +214,7 @@ def serve(port, obbaaAddress, obbaaPort):
     rpc.add_ControlRelayHelloServiceServicer_to_server(
         ControllerHelloService(obbaaAddress, obbaaPort), server)
     
-    rpc.add_ControlRelayPacketServiceServicer_to_server(
+    rpc_cpri.add_CpriMessageServicer_to_server(
         ControllerPacketService(obbaaAddress, obbaaPort), server)
     
     server.add_insecure_port('[::]:' + port)

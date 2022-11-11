@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+//**************************************************************************
+// TR-477 Control Packet Redirect Interface Message Protocol Buffer Schema
+//
+//  Copyright (c) 2021, Broadband Forum
+//
+//  Redistribution and use in source and binary forms, with or
+//   without modification, are permitted provided that the following
+//   conditions are met:
+//
+//   1. Redistributions of source code must retain the above copyright
+//      notice, this list of conditions and the following disclaimer.
+//
+//   2. Redistributions in binary form must reproduce the above
+//      copyright notice, this list of conditions and the following
+//      disclaimer in the documentation and/or other materials
+//      provided with the distribution.
+//
+//   3. Neither the name of the copyright holder nor the names of its
+//      contributors may be used to endorse or promote products
+//      derived from this software without specific prior written
+//      permission.
+//
+//   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+//   CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+//   INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+//   MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+//   DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+//   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+//   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+//   NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+//   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+//   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+//   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+//   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+//   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+//   The above license is used as a license under copyright only.
+//   Please reference the Forum IPR Policy for patent licensing terms
+//   <https://www.broadband-forum.org/ipr-policy>.
+//
+//   Any moral rights which are necessary to exercise under the above
+//   license grant are also deemed granted under this license.
+//
+// | Version           | Name                   | Date       |
+// | TR-477 1.0.0      | xxx                    | TBD, 2022  |
+//
+// BBF software release registry: http://www.broadband-forum.org/software
+//**************************************************************************
+
+package tr477_cpri_message.v1;
+
+import "google/protobuf/empty.proto";
+
+
+message CpriMsgHeader {
+  string msg_id = 1;  // Message identifier to
+                      // 1) Identify requests and notifications
+}
+
+message GenericMetadata {
+  string device_name = 1;       //The name of the device where the packet was
+                                //intercepted/is destined to
+  string device_interface = 2;  //The name of the interface where the packet
+                                //was intercepted/is destined to
+  string originating_rule = 3;  //Optional identification of the rule that originated the
+                                //capture of the packet
+}
+
+message OnuMetadata {
+  string  channel_termination = 1; //The local name of the channel termination
+                                   //in the OLT where the ONU is attached
+  string  onu_id = 2;              //ITU-T Transmission Convergence (TC)
+                                   //layer ONU-ID
+}
+
+message DhcpMetadata {
+
+}
+
+message PppoeMetadata {
+
+}
+
+
+message CpriMetaData {
+  GenericMetadata generic = 1;  //Common generic metadata
+  OnuMetadata onu = 2;          //Optional information about the ONU that
+                                //originated the packet or is destination
+                                //for the packet
+  oneof specific_metadata {
+    DhcpMetadata dhcp = 3;
+    PppoeMetadata pppoe = 4;
+  }
+}
+
+message CpriMsg {
+  CpriMsgHeader header = 1;
+  CpriMetaData meta_data = 2;
+  bytes packet = 3;            //Unmodified contents of the packet
+}
