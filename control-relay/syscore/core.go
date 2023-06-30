@@ -25,6 +25,7 @@ package syscore
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -37,11 +38,11 @@ import (
 	"sync"
 	"time"
 
-	pb "control_relay/pb"
+	control_relay "control_relay/pb/control_relay"
+	tr477 "control_relay/pb/tr477"
 	"control_relay/utils/log"
 
 	"github.com/Juniper/go-netconf/netconf"
-	"github.com/golang/protobuf/ptypes/empty"
 
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -81,18 +82,10 @@ type RunningPluginsStruct struct {
 	plugin_version   string
 }
 
-// ControlRelayPacketInternal ...
-type ControlRelayPacketInternal struct {
-	Device_name      string
-	Device_interface string
-	Originating_rule string
-	Packet           []byte
-}
-
 // Plugin ...
 type Plugin interface {
 	Start()
-	PacketOutCallBack(packet ControlRelayPacketInternal)
+	PacketOutCallBack(packet *tr477.CpriMsg)
 	Stop()
 }
 
@@ -102,20 +95,20 @@ type Plugin interface {
 // helloService is responsable for sending a hello to the SDN server
 // and also sending his own name, in this case the control relay
 type serverController struct {
-	dial          *grpc.ClientConn
-	helloService  pb.ControlRelayHelloServiceClient
-	packetService pb.CpriMessageClient
-	sdnAddress    string
+	dial         *grpc.ClientConn
+	helloService tr477.CpriHelloClient
+	clientStream tr477.CpriMessage_TransferCpriClient
+	sdnAddress   string
 }
 
-func helloService(addHelloService pb.ControlRelayHelloServiceClient, controller string) {
-	_, err := addHelloService.Hello(context.Background(), &pb.HelloRequest{
-		LocalEndpointHello: &pb.HelloRequest_Device{
-			Device: &pb.DeviceHello{
-				DeviceName: os.Getenv("CONTROL_RELAY_HELLO_NAME"),
-			},
+func helloService(addHelloService tr477.CpriHelloClient, controller string) {
+	_, err := addHelloService.HelloCpri(context.Background(), &tr477.HelloCpriRequest{
+		LocalEndpointHello: &tr477.Hello{
+			EntityName:   os.Getenv("CONTROL_RELAY_HELLO_NAME"),
+			EndpointName: os.Getenv("CONTROL_RELAY_HELLO_NBI_ENDPOINT_NAME"),
 		},
-	})
+	},
+	)
 
 	if err != nil {
 		log.Warning("Core: Hello Service failed")
@@ -129,17 +122,7 @@ func helloService(addHelloService pb.ControlRelayHelloServiceClient, controller 
 
 // waitForPacketsOnStream is responsable for receiving packages through the
 // SDN server stream and fowarding to a plugin, invoking PacketOutCallBack
-func waitForPacketsOnStream(addPacketService pb.CpriMessageClient, controller string) {
-	stream, err := addPacketService.ListenForCpriRx(context.Background(), &empty.Empty{})
-
-	if err != nil {
-		log.Warning("Core: ListenForCpriRx Service failed.")
-		log.Warning("Core: Could not create a client connection to the given target: ")
-		log.Warning("Core: Target is a Server SDN Controller: ", controller)
-		log.Error("Core: Error: ", err)
-		return
-	}
-
+func waitForPacketsOnStream(stream tr477.CpriMessage_TransferCpriClient, controller string) {
 	go on()
 	for {
 		packet, err := stream.Recv()
@@ -151,18 +134,11 @@ func waitForPacketsOnStream(addPacketService pb.CpriMessageClient, controller st
 			log.Debug("Core: Successfully received package")
 
 			var plugin Plugin
-
-			p := ControlRelayPacketInternal{
-				Device_name:      packet.MetaData.Generic.DeviceName,
-				Device_interface: packet.MetaData.Generic.DeviceInterface,
-				Originating_rule: packet.MetaData.Generic.OriginatingRule,
-				Packet:           packet.Packet,
-			}
-
+			log.Info("Received packet from vnf: ", packet)
 			if plugin = getPlugin(packet.MetaData.Generic.DeviceName); plugin == nil {
-				go retryPacketOutCallBack(packet.MetaData.Generic.DeviceName, p)
+				go retryPacketOutCallBack(packet.MetaData.Generic.DeviceName, packet)
 			} else {
-				plugin.PacketOutCallBack(p)
+				plugin.PacketOutCallBack(packet)
 			}
 
 		}
@@ -178,33 +154,24 @@ func on() {
 
 // PacketInCallBack is a default function to send packets for the SDN's
 // This function takes only one argument, a packet from the device
-func PacketInCallBack(packet ControlRelayPacketInternal) {
+func PacketInCallBack(packet *tr477.CpriMsg) {
 
 	for _, controller := range clientControllerList {
+		log.Debug(fmt.Sprintf("client controller: %+v", controller))
 		if controller.stream == nil {
-			log.Debug("Null stream for controller " + controller.ip)
+			log.Info("Null stream for controller " + controller.ip)
 			continue
 		}
 
-		if !packetAllowedInFilter(*controller, &packet) {
+		if !packetAllowedInFilter(*controller, packet) {
 			log.Debug("Packet not allowed in filter for controller" + controller.ip)
 			continue
 		}
 
-		metadata := pb.CpriMetaData{
-			Generic: &pb.GenericMetadata{
-				DeviceName:      packet.Device_name,
-				DeviceInterface: packet.Device_interface,
-				OriginatingRule: packet.Originating_rule,
-			},
-		}
-
-		if err := controller.stream.Send(&pb.CpriMsg{
-			MetaData: &metadata,
-			Packet:   packet.Packet,
-		}); err != nil {
+		log.Info("Received packet from olt: ", packet)
+		if err := controller.stream.Send(packet); err != nil {
 			log.Warning("Core: Failed to send the package")
-			log.Warning("Core: DeviceName: ", packet.Device_name)
+			log.Warning("Core: DeviceName: ", packet.MetaData.Generic.DeviceName)
 			log.Warning("Core: Error: ", err)
 			if deleteClientController(controller.ip) {
 				log.Info("Core: ClientController cleared from internal cache")
@@ -213,19 +180,8 @@ func PacketInCallBack(packet ControlRelayPacketInternal) {
 	}
 
 	for _, controller := range serverControllerList {
-
-		metadata := pb.CpriMetaData{
-			Generic: &pb.GenericMetadata{
-				DeviceName:      packet.Device_name,
-				DeviceInterface: packet.Device_interface,
-				OriginatingRule: packet.Originating_rule,
-			},
-		}
-
-		_, err := controller.packetService.CpriTx(context.Background(), &pb.CpriMsg{
-			MetaData: &metadata,
-			Packet:   packet.Packet,
-		})
+		log.Debug(fmt.Sprintf("Server controller: %+v", controller))
+		err := controller.clientStream.Send(packet)
 
 		if err != nil {
 			log.Warning("Core: PacketTx Service failed")
@@ -243,25 +199,33 @@ func PacketInCallBack(packet ControlRelayPacketInternal) {
 
 // packetAllowedInFilter is a function that is actually responsible for the
 // checking if the packet matches the filter
-func packetAllowedInFilter(controller clientController, packet *ControlRelayPacketInternal) bool {
+func packetAllowedInFilter(controller clientController, packet *tr477.CpriMsg) bool {
 	if controller.filter == nil {
 		return true
 	}
+	var genMetadata *tr477.GenericMetadata
+	if metadata := packet.GetMetaData(); metadata != nil {
+		genMetadata = metadata.GetGeneric()
+		if genMetadata == nil {
+			return false
+		}
+	} else {
+		return false
+	}
 
 	for _, filter := range controller.filter.Filter {
-		if filter.Type == pb.ControlRelayPacketFilterList_ControlRelayPacketFilter_EXCLUDE {
+		if filter.Type == control_relay.ControlRelayPacketFilterList_ControlRelayPacketFilter_EXCLUDE {
+			continue
+		}
+		if !doFiltering(filter.DeviceName, genMetadata.DeviceName) {
 			continue
 		}
 
-		if !doFiltering(filter.DeviceName, packet.Device_name) {
+		if !doFiltering(filter.DeviceInterface, genMetadata.DeviceInterface) {
 			continue
 		}
 
-		if !doFiltering(filter.DeviceInterface, packet.Device_interface) {
-			continue
-		}
-
-		if !doFiltering(filter.OriginatingRule, packet.Originating_rule) {
+		if !doFiltering(filter.OriginatingRule, genMetadata.Direction.String()) {
 			continue
 		}
 		return true
@@ -289,30 +253,30 @@ func doFiltering(filter string, prop string) bool {
 // Control App is the server and SDN M&C as gRPC Client
 // CONTROL APP SERVER  <-----  CLIENT SDN CONTROLLER
 type clientController struct {
-	stream  pb.CpriMessage_ListenForCpriRxServer
-	filter  *pb.ControlRelayPacketFilterList
+	stream  tr477.CpriMessage_TransferCpriServer
+	filter  *control_relay.ControlRelayPacketFilterList
 	ip      string
 	network string
 	ch      chan string
 }
 
 type controlRelayHelloService struct {
-	pb.UnimplementedControlRelayHelloServiceServer
+	tr477.UnimplementedCpriHelloServer
 }
 
 type controlRelayPacketService struct {
-	pb.UnimplementedCpriMessageServer
+	tr477.UnimplementedCpriMessageServer
 }
 
 type controlRelayPacketFilterService struct {
-	pb.UnimplementedControlRelayPacketFilterServiceServer
+	control_relay.UnimplementedControlRelayPacketFilterServiceServer
 }
 
 // Hello is one of the services provided by the proto, and is used mainly to
 // establish and keep the connection between the Control Relay and SDN client.
 // Is invoked by the SDN client, and if the connection is successfully established,
 // the control relay stores the reference of that SDN for later sending packets
-func (c *controlRelayHelloService) Hello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloResponse, error) {
+func (c *controlRelayHelloService) HelloCpri(ctx context.Context, in *tr477.HelloCpriRequest) (*tr477.HelloCpriResponse, error) {
 
 	if ctx == nil {
 		return nil, nil
@@ -330,77 +294,44 @@ func (c *controlRelayHelloService) Hello(ctx context.Context, in *pb.HelloReques
 		}
 	}
 
-	return &pb.HelloResponse{
-		RemoteEndpointHello: &pb.HelloResponse_Device{
-			Device: &pb.DeviceHello{
-				DeviceName: os.Getenv("CONTROL_RELAY_HELLO_NAME"),
-			},
+	return &tr477.HelloCpriResponse{
+		RemoteEndpointHello: &tr477.Hello{
+			EntityName:   os.Getenv("CONTROL_RELAY_HELLO_NAME"),
+			EndpointName: os.Getenv("CONTROL_RELAY_HELLO_NBI_ENDPOINT_NAME"),
 		},
 	}, nil
 }
 
-// PacketTx is one of the services provided by the proto, and is used to send
-// packages to the devices. PacketTx is invoked by the SDN client.
-// When invoked, it receives a new package, and will choose the specific plugin
-// to forward the packet to the device through the PacketOutCallBack function.
-func (c *controlRelayPacketService) CpriTx(ctx context.Context, in *pb.CpriMsg) (*empty.Empty, error) {
-
-	/* log.Info(
-		"Core: *** PACKET OUT ***",
-		"\nCore: Device Name: ", in.GetDeviceName(),
-		"\nCore: Device Interface: ", in.GetDeviceInterface(),
-		"\nCore: Packet: ", in.GetPacket(),
-	) */
-	var plugin Plugin
-
-	packet := ControlRelayPacketInternal{
-		Device_name:      in.MetaData.Generic.DeviceName,
-		Device_interface: in.MetaData.Generic.DeviceInterface,
-		Originating_rule: in.MetaData.Generic.OriginatingRule,
-		Packet:           in.Packet,
-	}
-
-	if plugin = getPlugin(in.MetaData.Generic.DeviceName); plugin == nil {
-		go retryPacketOutCallBack(in.MetaData.Generic.DeviceName, packet)
-		return &empty.Empty{}, nil
-	}
-
-	plugin.PacketOutCallBack(packet)
-	log.Debug("Core: PacketOut successfully sent and received from Steering App for Control Relay")
-
-	return &empty.Empty{}, nil
-}
-
-// ListenForPacketRx is one of the services provided by the proto
-// is invoked by the SDN client, receives a stream that is kept open
-// to send packets to the SDN client
-func (*controlRelayPacketService) ListenForCpriRx(e *empty.Empty, stream pb.CpriMessage_ListenForCpriRxServer) error {
-
-	if stream == nil {
-		return nil
-	}
-
+func (*controlRelayPacketService) TransferCpri(stream tr477.CpriMessage_TransferCpriServer) error {
 	ch := make(chan string)
 	p, ok := peer.FromContext(stream.Context())
 	if !ok {
-		log.Info("Core: Without information about the device")
-	} else {
-		if setClientControllerStream(p.Addr.String(), stream, ch) {
-			log.Info("Device ", p.Addr.String(), " has the stream open")
-		}
+		log.Warning("Error getting ip information from SDN")
+		return errors.New("Error getting ip information from SDN")
 	}
-
+	setClientControllerStream(p.Addr.String(), stream, ch)
+	log.Info("Transfer cpri core")
 	for {
-		<-ch
-		break
-	}
+		in, err := stream.Recv()
+		if err != nil {
+			log.Error("Error receiving packet:", err)
+			break
+		}
 
+		var plugin Plugin
+		if plugin = getPlugin(in.MetaData.Generic.DeviceName); plugin == nil {
+			go retryPacketOutCallBack(in.MetaData.Generic.DeviceName, in)
+			continue
+		}
+
+		plugin.PacketOutCallBack(in)
+	}
 	return nil
 }
 
 var channelToAccessOBBAA = make(chan int, 1)
 
-func retryPacketOutCallBack(deviceName string, packet ControlRelayPacketInternal) {
+func retryPacketOutCallBack(deviceName string, packet *tr477.CpriMsg) {
 	// ch := make(chan int, 1)  create a channel that supports only one goroutine at a time
 	// ch <- 1     				will block if there is MAX ints in channel
 	// <- ch					removes an int from channel, allowing another to proceed
@@ -470,7 +401,7 @@ func addClientController(ip string, net string) bool {
 	return true
 }
 
-func setClientControllerStream(ip string, stream pb.CpriMessage_ListenForCpriRxServer, ch chan string) bool {
+func setClientControllerStream(ip string, stream tr477.CpriMessage_TransferCpriServer, ch chan string) bool {
 	mutex.Lock()
 	if controller, ok := clientControllerList[ip]; ok {
 		controller.stream = stream
@@ -524,9 +455,9 @@ func startNorthboundServer() {
 	addPacketServiceServer := controlRelayPacketService{}
 	addFilterServiceServer := controlRelayPacketFilterService{}
 
-	pb.RegisterControlRelayHelloServiceServer(grpcServer, &addHelloServiceServer)
-	pb.RegisterCpriMessageServer(grpcServer, &addPacketServiceServer)
-	pb.RegisterControlRelayPacketFilterServiceServer(grpcServer, &addFilterServiceServer)
+	tr477.RegisterCpriHelloServer(grpcServer, &addHelloServiceServer)
+	tr477.RegisterCpriMessageServer(grpcServer, &addPacketServiceServer)
+	control_relay.RegisterControlRelayPacketFilterServiceServer(grpcServer, &addFilterServiceServer)
 
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatal(err)
@@ -554,17 +485,21 @@ func startNorthboundClient(sdnAddress string) bool {
 	}
 
 	// Send hello for steering app
-	addHelloServiceClient := pb.NewControlRelayHelloServiceClient(connSteeringApp)
+	addHelloServiceClient := tr477.NewCpriHelloClient(connSteeringApp)
 	helloService(addHelloServiceClient, sdnAddress)
 
-	addPacketServiceClient := pb.NewCpriMessageClient(connSteeringApp)
-	go waitForPacketsOnStream(addPacketServiceClient, sdnAddress)
+	addPacketServiceClient := tr477.NewCpriMessageClient(connSteeringApp)
+	clientStream, err := addPacketServiceClient.TransferCpri(context.Background())
+	if err != nil {
+		log.Error("Error getting stream from client:", err)
+	}
+	go waitForPacketsOnStream(clientStream, sdnAddress)
 
 	serverControllerList[sdnAddress] = &serverController{
-		dial:          connSteeringApp,
-		helloService:  addHelloServiceClient,
-		packetService: addPacketServiceClient,
-		sdnAddress:    sdnAddress,
+		dial:         connSteeringApp,
+		helloService: addHelloServiceClient,
+		clientStream: clientStream,
+		sdnAddress:   sdnAddress,
 	}
 	return true
 }
@@ -866,9 +801,11 @@ func StartControlRelay() {
 
 	go startNorthboundServer()
 
-	if startSSHConnection() {
-		getListOfDevicesFromOBBAA()
-	}
+	go func() {
+		if startSSHConnection() {
+			getListOfDevicesFromOBBAA()
+		}
+	}()
 
 	log.Info("Starting client Northbound Connections")
 
@@ -938,6 +875,11 @@ func StartControlRelay() {
 func init() {
 	if os.Getenv("CONTROL_RELAY_HELLO_NAME") == "" {
 		os.Setenv("CONTROL_RELAY_HELLO_NAME", "control_relay_service")
+	}
+
+	if os.Getenv("CONTROL_RELAY_HELLO_NBI_ENDPOINT_NAME") == "" {
+		os.Setenv("CONTROL_RELAY_HELLO_NBI_ENDPOINT_NAME", "control_relay_service_nbi")
+
 	}
 
 	if os.Getenv("PLUGIN_PORT") == "" {

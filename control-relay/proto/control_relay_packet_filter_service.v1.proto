@@ -1,6 +1,6 @@
 syntax = "proto3";
 package control_relay_packet_filter_service.v1;
-option go_package = "control_relay/pb";
+option go_package = "pb/control_relay";
 
 import "google/protobuf/empty.proto";
 

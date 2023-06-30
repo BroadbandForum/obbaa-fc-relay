@@ -50,6 +50,8 @@ services:
             - "50055:50055"
         environment: 
             - CONTROL_RELAY_HELLO_NAME=control_relay_service
+            - CONTROL_RELAY_HELLO_NBI_ENDPOINT_NAME=control_relay_service_nbi
+            - CONTROL_RELAY_HELLO_SBI_ENDPOINT_NAME=control_relay_service_sbi
             - PLUGIN_PORT=50052
             - SDN_MC_SERVER_PORT=50053
             - SDN_MC_SERVER_LIST=server_sdn_controller_1;server_sdn_controller_2;server_sdn_controller_3

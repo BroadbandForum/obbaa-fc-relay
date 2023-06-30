@@ -24,7 +24,9 @@ package syscore
 
 import (
 	"context"
-	pb "control_relay/pb"
+	control_relay "control_relay/pb/control_relay"
+	tr477 "control_relay/pb/tr477"
+	"control_relay/utils/log"
 	"net"
 	"os"
 	"reflect"
@@ -64,7 +66,7 @@ func boot(t *testing.T) {
 func Test_ClientServices(t *testing.T) {
 	boot(t)
 	c1 := mockNewControlRelayServiceClient(t, "0.0.0.0:12345")
-	c2 := mockNewControlRelayServiceClient(t, "")
+	c2 := mockNewControlRelayServiceClient(t, "0.0.0.0:12345")
 	c3 := mockNewControlRelayServiceClient(t, "0.0.0.0:12345")
 
 	type args struct {
@@ -75,7 +77,7 @@ func Test_ClientServices(t *testing.T) {
 	tests := []struct {
 		name   string
 		s      *serverController
-		packet ControlRelayPacketInternal
+		packet *tr477.CpriMsg
 	}{
 		{"test1", c1, MockControlRelayPacketInternalRequest("AlticeLabs_OLT22")},
 		{"test2", c2, MockControlRelayPacketInternalRequest("AlticeLabs_OLT22")},
@@ -86,13 +88,15 @@ func Test_ClientServices(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			helloService(tt.s.helloService, tt.s.sdnAddress)
 
-			got, _ := tt.s.helloService.Hello(context.Background(), MockHelloRequest("AlticeLabs_OLT22"))
+			got, _ := tt.s.helloService.HelloCpri(context.Background(), MockHelloRequest("AlticeLabs_OLT22"))
 			want := MockHelloResponse()
-			if !reflect.DeepEqual(got, want) {
+			if got.RemoteEndpointHello.EndpointName != want.RemoteEndpointHello.EndpointName ||
+				got.RemoteEndpointHello.EntityName != want.RemoteEndpointHello.EntityName {
 				t.Errorf("Hello() = %v, want %v", got, want)
+
 			}
 
-			go waitForPacketsOnStream(tt.s.packetService, tt.s.sdnAddress)
+			go waitForPacketsOnStream(tt.s.clientStream, tt.s.sdnAddress)
 		})
 	}
 	time.Sleep(1 * time.Second)
@@ -197,9 +201,9 @@ func mockNewServer() {
 	addFilterServ := controlRelayPacketFilterService{}
 
 	// The & symbol points to the address of the stored value.
-	pb.RegisterControlRelayHelloServiceServer(server, &addHelloServ)
-	pb.RegisterCpriMessageServer(server, &addPacketServ)
-	pb.RegisterControlRelayPacketFilterServiceServer(server, &addFilterServ)
+	tr477.RegisterCpriHelloServer(server, &addHelloServ)
+	tr477.RegisterCpriMessageServer(server, &addPacketServ)
+	control_relay.RegisterControlRelayPacketFilterServiceServer(server, &addFilterServ)
 
 	go server.Serve(lis)
 }
@@ -207,14 +211,19 @@ func mockNewServer() {
 func mockNewControlRelayServiceClient(t *testing.T, address string) *serverController {
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	require.NoError(t, err)
-	addHelloServiceClient := pb.NewControlRelayHelloServiceClient(conn)
-	addPacketServiceClient := pb.NewCpriMessageClient(conn)
+	addHelloServiceClient := tr477.NewCpriHelloClient(conn)
+	addPacketServiceClient := tr477.NewCpriMessageClient(conn)
+	stream, err := addPacketServiceClient.TransferCpri(context.Background())
+	if err != nil {
+		log.Error("")
+		return nil
+	}
 
 	s := &serverController{
-		dial:          conn,
-		helloService:  addHelloServiceClient,
-		packetService: addPacketServiceClient,
-		sdnAddress:    address,
+		dial:         conn,
+		helloService: addHelloServiceClient,
+		clientStream: stream,
+		sdnAddress:   address,
 	}
 	serverControllerList[address] = s
 	return s
@@ -223,11 +232,19 @@ func mockNewControlRelayServiceClient(t *testing.T, address string) *serverContr
 // Mock of grpc server stream
 type mockControlRelayPacketService_ListenForPacketRxServer struct {
 	grpc.ServerStream
-	Packets []*pb.CpriMsg
+	Packets []*tr477.CpriMsg
+}
+
+func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Recv() (*tr477.CpriMsg, error) {
+	return &tr477.CpriMsg{
+		Header:   &tr477.CpriMsgHeader{},
+		MetaData: &tr477.CpriMetaData{},
+		Packet:   []byte{},
+	}, nil
 }
 
 // Mock function Send of grpc server stream
-func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Send(packet *pb.CpriMsg) error {
+func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Send(packet *tr477.CpriMsg) error {
 	_m.Packets = append(_m.Packets, packet)
 	return nil
 }
@@ -238,47 +255,49 @@ func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Context() conte
 }
 
 // MockControlRelayPacketInternalRequest ...
-func MockControlRelayPacketInternalRequest(name string) ControlRelayPacketInternal {
-	return ControlRelayPacketInternal{
-		Device_name:      name,
-		Device_interface: "1234",
-		Originating_rule: "",
-		Packet:           []byte{},
+func MockControlRelayPacketInternalRequest(name string) *tr477.CpriMsg {
+	return &tr477.CpriMsg{
+		MetaData: &tr477.CpriMetaData{
+			Generic: &tr477.GenericMetadata{
+				DeviceName:      name,
+				DeviceInterface: "1234",
+				Direction:       tr477.GenericMetadata_NNI_TO_UNI,
+			},
+		},
+		Packet: []byte{},
 	}
 }
 
 // MockHelloRequest ...
-func MockHelloRequest(name string) *pb.HelloRequest {
-	return &pb.HelloRequest{
-		LocalEndpointHello: &pb.HelloRequest_Device{
-			Device: &pb.DeviceHello{
-				DeviceName: name,
-			},
+func MockHelloRequest(name string) *tr477.HelloCpriRequest {
+	return &tr477.HelloCpriRequest{
+		LocalEndpointHello: &tr477.Hello{
+			EntityName:   os.Getenv("CONTROL_RELAY_HELLO_NAME"),
+			EndpointName: os.Getenv("CONTROL_RELAY_HELLO_NBI_ENDPOINT_NAME"),
 		},
 	}
 }
 
 // MockHelloResponse ...
-func MockHelloResponse() *pb.HelloResponse {
-	return &pb.HelloResponse{
-		RemoteEndpointHello: &pb.HelloResponse_Device{
-			Device: &pb.DeviceHello{
-				DeviceName: os.Getenv("CONTROL_RELAY_HELLO_NAME"),
-			},
+func MockHelloResponse() *tr477.HelloCpriResponse {
+	return &tr477.HelloCpriResponse{
+		RemoteEndpointHello: &tr477.Hello{
+			EntityName:   os.Getenv("CONTROL_RELAY_HELLO_NAME"),
+			EndpointName: os.Getenv("CONTROL_RELAY_HELLO_NBI_ENDPOINT_NAME"),
 		},
 	}
 }
 
 // MockControlRelayPacketRequest ...
-func MockControlRelayPacketRequest(name string) *pb.CpriMsg {
-	metadata := pb.CpriMetaData{
-		Generic: &pb.GenericMetadata{
+func MockControlRelayPacketRequest(name string) *tr477.CpriMsg {
+	metadata := tr477.CpriMetaData{
+		Generic: &tr477.GenericMetadata{
 			DeviceName:      name,
 			DeviceInterface: "1234",
-			OriginatingRule: "",
+			Direction:       tr477.GenericMetadata_NNI_TO_UNI,
 		},
 	}
-	return &pb.CpriMsg{
+	return &tr477.CpriMsg{
 		MetaData: &metadata,
 		Packet:   []byte{},
 	}

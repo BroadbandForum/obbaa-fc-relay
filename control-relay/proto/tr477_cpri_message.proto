@@ -50,8 +50,20 @@ syntax = "proto3";
 //**************************************************************************
 
 package tr477_cpri_message.v1;
+option go_package = "pb/tr477";
 
-import "google/protobuf/empty.proto";
+message Hello {
+  string entity_name = 1;   //Unique name of the pOLT or D-OLT
+  string endpoint_name = 2; //The pOLT or D-OLT endpoint name
+}
+
+message HelloCpriRequest {
+  Hello local_endpoint_hello = 1;
+}
+
+message HelloCpriResponse {
+  Hello remote_endpoint_hello = 1;
+}
 
 
 message CpriMsgHeader {
@@ -60,12 +72,20 @@ message CpriMsgHeader {
 }
 
 message GenericMetadata {
-  string device_name = 1;       //The name of the device where the packet was
-                                //intercepted/is destined to
-  string device_interface = 2;  //The name of the interface where the packet
-                                //was intercepted/is destined to
-  string originating_rule = 3;  //Optional identification of the rule that originated the
-                                //capture of the packet
+  enum PacketDirection {
+     UNI_TO_NNI = 0;  //UNI to NNI direction
+     NNI_TO_UNI = 1;  //NNI to UNI direction
+  }
+
+  string device_name = 1;        //The name of the device where the packet was
+                                 //intercepted/is destined to
+  string device_interface = 2;   //The name of the interface where the packet
+                                 //was intercepted/is destined to. Typically
+                                 //this should be the name of a TR-383 VLAN
+                                 //sub-interface
+  PacketDirection direction = 3; //The direction of the packet when it was
+                                 //intercepted/the direction to inject the
+                                 //packet
 }
 
 message OnuMetadata {
@@ -75,12 +95,23 @@ message OnuMetadata {
                                    //layer ONU-ID
 }
 
-message DhcpMetadata {
+message HardwareIdElements {
+  //Hardware Identification elements (TR-101i2 section 3.9.3, Table 2)
+  string chassis_number = 1;  //Char(2) Chassis number in the access node
+  string rack_number = 2;     //Char(2) Rack number in the access node
+  string frame_number = 3;    //Char(2) Frame number in the rack
+  string slot_number = 4;     //Char(2) Slot number in the chassis or rack or
+                              //frame
+  string sub_slot_number = 5; //Char(2) Sub-slot number
+  string port_number = 6;     //Char(3) Port number in the slot
+}
 
+message DhcpMetadata {
+  HardwareIdElements hw_id_elements = 1;
 }
 
 message PppoeMetadata {
-
+  HardwareIdElements hw_id_elements = 1;
 }
 
 

@@ -5,13 +5,15 @@ RUN go get -u github.com/golang/protobuf/protoc-gen-go
 WORKDIR /opt/control-relay
 COPY . .
 
-RUN protoc --proto_path=proto --go_out=plugins=grpc:pb --go_opt=paths=source_relative \
-  --go_opt=Mtr477_cpri_message.proto=control_relay/pb   \
-  --go_opt=Mtr477_cpri_service.proto=control_relay/pb   \
-  ./proto/control_relay_packet_filter_service.v1.proto  \
-  ./proto/control_relay_service.proto                   \
-  ./proto/tr477_cpri_message.proto    \
-  ./proto/tr477_cpri_service.proto
+# RUN protoc --proto_path=proto --go_out=plugins=grpc:pb --go_opt=paths=source_relative \
+#   --go_opt=Mtr477_cpri_message.proto=control_relay/pb   \
+#   --go_opt=Mtr477_cpri_service.proto=control_relay/pb   \
+#   ./proto/control_relay_packet_filter_service.v1.proto  \
+#   ./proto/control_relay_service.proto                   \
+#   ./proto/tr477_cpri_message.proto    \
+#   ./proto/tr477_cpri_service.proto
+
+# RUN ./generate_pb.sh
 
 ### compile the plugin
 RUN go build -buildmode=plugin -o bin/plugin-standard/BBF-OLT-standard-1.0.so plugins/standard/BBF-OLT-standard-1.0.go

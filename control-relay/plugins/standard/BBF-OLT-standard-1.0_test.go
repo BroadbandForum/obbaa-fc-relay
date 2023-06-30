@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 
- /*
+/*
 * Control Relay gRPC Standard Plugin unit tests file
 *
 * Created by Filipe Claudio(Altice Labs) on 01/09/2020
-*/
- 
+ */
+
 package main
 
 import (
 	"context"
-	"control_relay/pb"
-	core "control_relay/syscore"
+	"control_relay/pb/tr477"
 	"net"
 	"reflect"
 	"testing"
@@ -38,14 +37,14 @@ import (
 func Test_controlRelayHelloService_Hello(t *testing.T) {
 	type args struct {
 		ctx context.Context
-		in  *pb.HelloRequest
+		in  *tr477.HelloCpriRequest
 	}
 
 	tests := []struct {
 		name    string
 		s       *controlRelayHelloService
 		args    args
-		want    *pb.HelloResponse
+		want    *tr477.HelloCpriResponse
 		wantErr bool
 	}{
 		{"test1", &controlRelayHelloService{}, args{context.TODO(), MockHelloRequest("AlticeLabs_OLT22")}, MockHelloResponse(), false},
@@ -56,7 +55,7 @@ func Test_controlRelayHelloService_Hello(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, _ := test.s.Hello(test.args.ctx, test.args.in)
+			got, _ := test.s.HelloCpri(test.args.ctx, test.args.in)
 			if (!reflect.DeepEqual(got, test.want)) != test.wantErr {
 				t.Errorf("controlRelayHelloService.Hello() = %v, want %v", got, test.want)
 			}
@@ -67,7 +66,7 @@ func Test_controlRelayHelloService_Hello(t *testing.T) {
 func Test_controlRelayPacketService_PacketTx(t *testing.T) {
 	type args struct {
 		ctx context.Context
-		in  *pb.CpriMsg
+		in  *tr477.CpriMsg
 	}
 
 	tests := []struct {
@@ -99,13 +98,13 @@ func Test_controlRelayPacketService_ListenForPacketRx(t *testing.T) {
 	server.ListenForCpriRx(&empty.Empty{}, mock)
 
 	client := mockClientConnectionTest(t, ":12345")
-	_, err := client.ListenForCpriRx(context.Background(), &empty.Empty{})
+	_, err := client.TransferCpri(context.Background(), &empty.Empty{})
 	require.NoError(t, err)
 }
 
 func Test_plugin_PacketOutCallBack(t *testing.T) {
 	type args struct {
-		packet *core.ControlRelayPacketInternal
+		packet *tr477.CpriMsg
 	}
 	tests := []struct {
 		name string
@@ -118,7 +117,7 @@ func Test_plugin_PacketOutCallBack(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.p.PacketOutCallBack(*tt.args.packet)
+			tt.p.PacketOutCallBack(tt.args.packet)
 		})
 	}
 }
@@ -215,27 +214,35 @@ func mockServerTest(t *testing.T) {
 	addPacketServ := controlRelayPacketService{}
 
 	// The & symbol points to the address of the stored value.
-	pb.RegisterControlRelayHelloServiceServer(server, &addHelloServ)
-	pb.RegisterCpriMessageServer(server, &addPacketServ)
+	tr477.RegisterCpriHelloServer(server, &addHelloServ)
+	tr477.RegisterCpriMessageServer(server, &addPacketServ)
 
 	go server.Serve(lis)
 }
 
-func mockClientConnectionTest(t *testing.T, address string) pb.CpriMessageClient {
+func mockClientConnectionTest(t *testing.T, address string) tr477.CpriMessageClient {
 	mockServerTest(t)
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	require.NoError(t, err)
-	return pb.NewCpriMessageClient(conn)
+	return tr477.NewCpriMessageClient(conn)
 }
 
 // Mock of grpc server stream
 type mockControlRelayPacketService_ListenForPacketRxServer struct {
 	grpc.ServerStream
-	Packets []*pb.CpriMsg
+	Packets []*tr477.CpriMsg
+}
+
+func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Recv() (*tr477.CpriMsg, error) {
+	return &tr477.CpriMsg{
+		Header:   &tr477.CpriMsgHeader{},
+		MetaData: &tr477.CpriMetaData{},
+		Packet:   []byte{},
+	}, nil
 }
 
 // Mock function Send of grpc server stream
-func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Send(packet *pb.CpriMsg) error {
+func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Send(packet *tr477.CpriMsg) error {
 	_m.Packets = append(_m.Packets, packet)
 	return nil
 }
@@ -246,45 +253,41 @@ func (_m *mockControlRelayPacketService_ListenForPacketRxServer) Context() conte
 }
 
 // MockControlRelayPacketInternalRequest ...
-func MockControlRelayPacketInternalRequest(name string) *core.ControlRelayPacketInternal {
-	return &core.ControlRelayPacketInternal{
-		Device_name:      name,
-		Device_interface: "1234",
-		Originating_rule: "",
-		Packet:           []byte{},
+func MockControlRelayPacketInternalRequest(name string) *tr477.CpriMsg {
+	return &tr477.CpriMsg{
+		MetaData: &tr477.CpriMetaData{
+			Generic: &tr477.GenericMetadata{
+				DeviceName:      name,
+				DeviceInterface: "1234",
+				Direction:       tr477.GenericMetadata_NNI_TO_UNI,
+			},
+		},
+		Packet: []byte{},
 	}
 }
 
-// MockHelloRequestSuccess ...
-func MockHelloRequest(name string) *pb.HelloRequest {
-	return &pb.HelloRequest{LocalEndpointHello: &pb.HelloRequest_Device{
-		Device: &pb.DeviceHello{
-			DeviceName: name,
-		},
-	}}
+func MockHelloRequest(name string) *tr477.HelloCpriRequest {
+	return &tr477.HelloCpriRequest{
+		LocalEndpointHello: &tr477.Hello{},
+	}
 }
 
-// MockHelloResponseSuccess ...
-func MockHelloResponse() *pb.HelloResponse {
-	return &pb.HelloResponse{
-		RemoteEndpointHello: &pb.HelloResponse_Controller{
-			Controller: &pb.ControllerHello{
-				// nothing
-			},
-		},
+func MockHelloResponse() *tr477.HelloCpriResponse {
+	return &tr477.HelloCpriResponse{
+		RemoteEndpointHello: &tr477.Hello{},
 	}
 }
 
 // MockControlRelayPacketRequestSuccess ...
-func MockControlRelayPacketRequest(name string) *pb.CpriMsg {
-	metadata := pb.CpriMetaData{
-		Generic: &pb.GenericMetadata{
+func MockControlRelayPacketRequest(name string) *tr477.CpriMsg {
+	metadata := tr477.CpriMetaData{
+		Generic: &tr477.GenericMetadata{
 			DeviceName:      name,
 			DeviceInterface: "1234",
-			OriginatingRule: "",
+			Direction:       tr477.GenericMetadata_NNI_TO_UNI,
 		},
 	}
-	return &pb.CpriMsg{
+	return &tr477.CpriMsg{
 		MetaData: &metadata,
 		Packet:   []byte{},
 	}

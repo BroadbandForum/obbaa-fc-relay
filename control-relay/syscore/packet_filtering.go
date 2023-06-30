@@ -14,31 +14,32 @@
  * limitations under the License.
  */
 
-  /*
+/*
 * Control Relay packet filtering file
 *
 * Created by Filipe Claudio(Altice Labs) on 01/09/2020
-*/ 
+ */
 
 package syscore
 
 import (
 	"context"
+	"control_relay/pb/control_relay"
 	"control_relay/utils/log"
-	pb "control_relay/pb"
+
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc/peer"
 )
 
-func (c *controlRelayPacketFilterService) SetControlRelayPacketFilter(ctx context.Context, in *pb.ControlRelayPacketFilterList) (*pb.ControlRelayPacketFilterResponse, error) {
-	
+func (c *controlRelayPacketFilterService) SetControlRelayPacketFilter(ctx context.Context, in *control_relay.ControlRelayPacketFilterList) (*control_relay.ControlRelayPacketFilterResponse, error) {
+
 	if ctx == nil {
 		return nil, nil
 	}
 
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return &pb.ControlRelayPacketFilterResponse{Response: pb.ControlRelayPacketFilterResponse_FAIL}, nil
+		return &control_relay.ControlRelayPacketFilterResponse{Response: control_relay.ControlRelayPacketFilterResponse_FAIL}, nil
 	}
 	address := p.Addr.String()
 
@@ -50,10 +51,10 @@ func (c *controlRelayPacketFilterService) SetControlRelayPacketFilter(ctx contex
 		controller.filter = in
 	}
 	mutex.Unlock()
-	return &pb.ControlRelayPacketFilterResponse{Response: pb.ControlRelayPacketFilterResponse_SUCCESS}, nil
+	return &control_relay.ControlRelayPacketFilterResponse{Response: control_relay.ControlRelayPacketFilterResponse_SUCCESS}, nil
 }
 
-func (c *controlRelayPacketFilterService) ClearControlRelayPacketFilter(ctx context.Context, _ *empty.Empty) (*pb.ControlRelayPacketFilterResponse, error) {
+func (c *controlRelayPacketFilterService) ClearControlRelayPacketFilter(ctx context.Context, _ *empty.Empty) (*control_relay.ControlRelayPacketFilterResponse, error) {
 
 	if ctx == nil {
 		return nil, nil
@@ -61,7 +62,7 @@ func (c *controlRelayPacketFilterService) ClearControlRelayPacketFilter(ctx cont
 
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return &pb.ControlRelayPacketFilterResponse{Response: pb.ControlRelayPacketFilterResponse_FAIL}, nil
+		return &control_relay.ControlRelayPacketFilterResponse{Response: control_relay.ControlRelayPacketFilterResponse_FAIL}, nil
 	}
 	address := p.Addr.String()
 
@@ -71,5 +72,5 @@ func (c *controlRelayPacketFilterService) ClearControlRelayPacketFilter(ctx cont
 		controller.filter = nil
 	}
 	mutex.Unlock()
-	return &pb.ControlRelayPacketFilterResponse{Response: pb.ControlRelayPacketFilterResponse_SUCCESS}, nil
+	return &control_relay.ControlRelayPacketFilterResponse{Response: control_relay.ControlRelayPacketFilterResponse_SUCCESS}, nil
 }
